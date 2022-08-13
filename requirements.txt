@@ -1,0 +1,7 @@
+transformers
+torch
+gspread
+gspread_pandas
+seaborn
+pandas
+termcolor
