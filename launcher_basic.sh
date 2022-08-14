@@ -12,8 +12,7 @@
 ###########################
 
 set -x
-module load python/3.7
-module load cuda/11.2
+module load python/3.8
 export NUM_GPUS=${NUM_GPUS:=2}
 export TOKENIZERS_PARALLELISM=true
 export PYTHONPATH=.:${PYTHONPATH}
