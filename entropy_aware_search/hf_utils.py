@@ -330,4 +330,5 @@ def get_tokenizer(model_args):
             "You are instantiating a new tokenizer from scratch. This is not supported by this script."
             "You can do it from another script, save it, and load it from here, using --tokenizer_name."
         )
+
     return tokenizer
