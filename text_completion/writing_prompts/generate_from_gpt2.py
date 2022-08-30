@@ -3,7 +3,7 @@
 from torch.utils.data import DataLoader
 
 from entropy_aware_search.hf_utils import DataArguments, ModelArguments, get_tokenizer, get_model
-from utils import get_writing_prompt_dataset, preprocess_logits_for_metrics, get_tokenized_prompt_dataset, compute_metrics
+from utils import get_writing_prompt_dataset, preprocess_logits_for_metrics, get_tokenized_prompt_dataset, get_compute_metrics_func
 
 import argparse
 import logging
@@ -81,7 +81,7 @@ def main():
     parser.add_argument("--do_sample", action="store_true", help="Use Sampling Decoding.")
     parser.add_argument("--num_beams", type=int, default=None)
     parser.add_argument("--typical_p", type=float, default=None)
-    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=16)
 
     args = parser.parse_args()
 

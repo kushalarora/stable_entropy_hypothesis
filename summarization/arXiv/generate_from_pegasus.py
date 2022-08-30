@@ -90,14 +90,13 @@ def main():
 
     arxiv_summ_dataset = load_dataset("scientific_papers", "arxiv")
   
-
-    tokenizer = AutoTokenizer.from_pretrained("google/bigbird-pegasus-large-arxiv")
-
     model = BigBirdPegasusForConditionalGeneration.from_pretrained("google/bigbird-pegasus-large-arxiv")
 
     model = model.to(args.device)
 
     args.length = adjust_length_to_model(args.length, max_sequence_length=model.config.max_position_embeddings)
+
+    tokenizer = AutoTokenizer.from_pretrained("google/bigbird-pegasus-large-arxiv")
 
 
     text_column = "article"

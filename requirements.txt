@@ -12,3 +12,5 @@ jupyter
 tqdm
 widgetsnbextension
 tensorboard
+rouge_score
+termcolor
