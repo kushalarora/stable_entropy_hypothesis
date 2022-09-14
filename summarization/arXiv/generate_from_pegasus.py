@@ -74,6 +74,7 @@ def main():
     parser.add_argument("--num_beams", type=int, default=None)
     parser.add_argument("--typical_p", type=float, default=None)
     parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--entropy_aware_search", action="store_true", help="Use entropy aware search.")
 
     args = parser.parse_args()
 
@@ -149,6 +150,7 @@ def main():
                 num_beams=args.num_beams,
                 repetition_penalty=args.repetition_penalty,
                 do_sample=args.do_sample,
+                entropy_aware_search=args.entropy_aware_search,
             )
             generated_abstracts = tokenizer.batch_decode(outputs,  skip_special_tokens=True)
             articles = tokenizer.batch_decode(batch['input_ids'],  skip_special_tokens=True)
