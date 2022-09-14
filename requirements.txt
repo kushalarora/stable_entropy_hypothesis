@@ -14,3 +14,5 @@ widgetsnbextension
 tensorboard
 rouge_score
 termcolor
+evaluate
+mauve-text
