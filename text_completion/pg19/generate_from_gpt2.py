@@ -3,7 +3,7 @@
 from torch.utils.data import DataLoader
 
 from entropy_aware_search.hf_utils import DataArguments, ModelArguments, get_tokenizer, get_model
-from utils import get_writing_prompt_dataset, get_tokenized_prompt_dataset, get_compute_metrics_func
+from utils import get_pg19_dataset, get_compute_metrics_func
 
 import argparse
 import logging
@@ -78,7 +78,7 @@ def main():
     parser.add_argument("--do_sample", action="store_true", help="Use Sampling Decoding.")
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--typical_p", type=float, default=None)
-    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--entropy_aware_search", action="store_true", help="Use entropy aware search.")
 
     args = parser.parse_args()
@@ -94,48 +94,20 @@ def main():
         model_name_or_path=args.model_name_or_path,
     )
 
-    prompt_response_dataset = get_writing_prompt_dataset(
-        "/home/mila/a/arorakus/wdir/entropy_aware_search/data/writingPrompts/")
+    wiki_testset = get_pg19_dataset(
+        "/home/mila/a/arorakus/wdir/entropy_aware_search/data/rankgen_data/")
         # split=['train[:10%]', 'test[:5%]'])
 
-    # prompt_response_dataset = filter_out_shorter_prompt(prompt_response_dataset)
 
     tokenizer = get_tokenizer(model_args)
     tokenizer.pad_token = tokenizer.eos_token
 
     model = get_model(model_args)
     model = model.to(args.device)
-    prompt_response_testset = prompt_response_dataset['test']
     
     def tokenizer_method(examples):
-        contexts = []
-        gold_responses = []
-        for prompt,response in zip(examples['prompt'], examples['response']):
-            response_tok = response.strip().split()
-            context_toks = prompt.split()
-            response = ' '.join(response_tok[128 - len(context_toks):])
-            context_toks += ['<newline>'] + response_tok[:128 -1 - len(context_toks)]
-
-            assert len(context_toks) == 128
-
-            context = ' '.join(context_toks)
-
-            contexts.append(context)
-            gold_responses.append(response)
-
-        tokenized_examples = tokenizer(contexts, max_length=768, truncation=True, padding=True, return_tensors='pt')
-
-        return tokenized_examples, gold_responses
-
-    # tokenized_writing_prompt_dataset = prompt_response_dataset.map(
-    #                     tokenizer_method, 
-    #                     batched=True, 
-    #                     num_proc=10, 
-    #                     # load_from_cache_file=True,
-    #                     remove_columns=prompt_response_dataset['validation'].column_names)
-
-    # tokenized_writing_prompt_dataset = get_tokenized_prompt_dataset(prompt_response_dataset, tokenizer, generate=True)
-    # tokenized_writing_prompt_testset = tokenized_writing_prompt_dataset['test']
+        tokenized_examples = tokenizer(examples['prefix'], max_length=1024, truncation=True, padding=True, return_tensors='pt')
+        return tokenized_examples, [x[0] for x in examples['targets']]
 
     # compute_metrics = get_compute_metrics_func(experiment_id="tmp_id", tokenizer=tokenizer, metric_names=['accuracy', 'mauve'])
 
@@ -147,22 +119,18 @@ def main():
 
     logger.info(args)
 
-    # DataLoaders creation:
-    # data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=False)
-    # test_dataloader = DataLoader(tokenized_writing_prompt_dataset, collate_fn=data_collator, batch_size=args.batch_size)
 
-    
-    generated_sequences = []
     with open(args.output_filename, 'w') as output_file:
         generated_output_sequences = []
         prompt_sequences = []
         targets = []
-        for idx, batch_start in enumerate(range(0, len(prompt_response_testset), args.batch_size)):
-            batch, batch_targets = tokenizer_method(prompt_response_testset[batch_start: batch_start+args.batch_size])
+        for idx, batch_start in enumerate(range(0, len(wiki_testset), args.batch_size)):
+            batch, batch_targets = tokenizer_method(wiki_testset[batch_start: batch_start+args.batch_size])
             batch = batch.to(args.device)
             outputs = model.generate(
                 **batch,
-                max_length=args.length,
+                max_new_tokens=128,
+                min_length=20,
                 temperature=args.temperature,
                 top_k=args.k,
                 top_p=args.p,
@@ -172,7 +140,7 @@ def main():
                 do_sample=args.do_sample,
                 entropy_aware_search=args.entropy_aware_search,
                 return_dict_in_generate=True,
-                num_return_sequences=args.num_beams,
+                # num_return_sequences=args.num_beams,
                 output_scores=True,
             )
 
@@ -195,9 +163,9 @@ def main():
                     in enumerate(zip(prompt_sequences, generated_output_sequences, targets, pct_entropy_voilations, entropies)):
                 print(f"=== GENERATED SEQUENCE {idx}-{generated_sequence_idx + 1} ===", end='\r')
             
-                prompt_sequence = prompt_sequence.strip().replace("\n", "<newline>")
-                generated_sequence = generated_sequence.strip().replace("\n", "<newline>")
-                target = target.strip().replace("\n", "<newline>")
+                prompt_sequence = prompt_sequence.strip().replace("\n", "<n>")
+                generated_sequence = generated_sequence.strip().replace("\n", "<n>")
+                target = target.strip().replace("\n", "<n>")
 
                 if (idx * args.batch_size + generated_sequence_idx) % 10 == 0:
                     print()

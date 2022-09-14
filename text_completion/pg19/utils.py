@@ -4,16 +4,11 @@ import evaluate
 import os
 from datasets import load_dataset
 
-def get_writing_prompt_dataset(data_dir):
-    data_files = {
-        'train': os.path.join(data_dir, 'train.json'),
-        'validation': os.path.join(data_dir, 'valid.json'),
-        'test': os.path.join(data_dir, 'test.json')
-    }
-    prompt_response_dataset = load_dataset("json", 
-                                            data_files=data_files)
-    return prompt_response_dataset
-
+def get_pg19_dataset(data_dir):
+    
+    pg19_dataset = load_dataset("json", 
+                    data_files=os.path.join(data_dir, 'pg19.jsonl'))
+    return pg19_dataset['train']
 
 
 def preprocess_logits_for_metrics(logits, labels):
@@ -22,23 +17,6 @@ def preprocess_logits_for_metrics(logits, labels):
         # like past_key_values, but logits always come first
         logits = logits[0]
     return logits.argmax(dim=-1)
-
-
-def get_tokenized_prompt_dataset(prompt_response_dataset, tokenizer, generate=False):
-    def preprocess_and_tokenize(examples):
-        if generate:
-            tokenized_examples = tokenizer(examples['prompt'])
-            # tokenized_examples['response'] = examples['response']
-        else:
-            tokenized_examples = tokenizer(examples['prompt'], examples['response'], max_length=1024, truncation=True)
-        return tokenized_examples
-
-    prompt_dataset = prompt_response_dataset.map(
-                        preprocess_and_tokenize, 
-                        batched=True, 
-                        num_proc=10, 
-                        remove_columns=prompt_response_dataset['validation'].column_names)
-    return prompt_dataset
 
 def get_compute_metrics_func(experiment_id, metric_names=['accuracy'], tokenizer=None):
 

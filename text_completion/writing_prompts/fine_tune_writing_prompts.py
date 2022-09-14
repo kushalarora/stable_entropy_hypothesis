@@ -34,7 +34,7 @@ if __name__ == '__main__':
         logging_steps=10,
         save_steps=1000,
         per_device_train_batch_size=per_device_batch_size,
-        per_device_eval_batch_size=32,
+        per_device_eval_batch_size=16,
         learning_rate=learning_rate,
         fp16=True,
         gradient_accumulation_steps=4,
@@ -69,7 +69,6 @@ if __name__ == '__main__':
         compute_metrics=compute_metrics,
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
-    import pdb; pdb.set_trace()
 
     metrics = trainer.evaluate()
 
