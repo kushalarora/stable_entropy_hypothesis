@@ -13,8 +13,11 @@
 
 set -x
 module load python/3.8
+# module load StdEnv/2020  gcc/9.3.0  cuda/11.4
+# module load faiss
+
 export NUM_GPUS=${NUM_GPUS:=2}
 export TOKENIZERS_PARALLELISM=true
 export PYTHONPATH=.:${PYTHONPATH}
-source ~/envs/ews/bin/activate
+source  ${HOME}/envs/ews/bin/activate
 $@
