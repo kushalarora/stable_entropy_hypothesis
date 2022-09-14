@@ -19,5 +19,5 @@ module load python/3.8
 export NUM_GPUS=${NUM_GPUS:=2}
 export TOKENIZERS_PARALLELISM=true
 export PYTHONPATH=.:${PYTHONPATH}
-source  ${HOME}/envs/ews/bin/activate
+source  ${HOME}/scratch/envs/ews/bin/activate
 $@
