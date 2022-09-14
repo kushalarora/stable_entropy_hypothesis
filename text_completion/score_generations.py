@@ -1,21 +1,21 @@
 import argparse
 import json
 import random
-import numpy as np
+# import numpy as np
 import mauve
 import pickle
 import glob
 import os
-import matplotlib.pyplot as plt
-from nltk import tokenize
-from nltk.corpus import stopwords
+# import matplotlib.pyplot as plt
+# from nltk import tokenize
+# from nltk.corpus import stopwords
 import tqdm
 import re 
 import string
 import collections as cll
-import spacy
+# import spacy
 
-nlp = spacy.load("en_core_web_md")
+# nlp = spacy.load("en_core_web_md")
 
 def f1_score(prediction, ground_truth, gram=1, stopwords=None):
     """Calculate word level F1 score."""
@@ -99,6 +99,10 @@ with open(args.dataset, 'r') as generations:
         prefix = data['prefix'].strip()
         generated_seq = data['generation'].strip()
         target = data['target'].strip()
+        
+        if generated_seq is None or len(generated_seq.split()) < 10 or \
+            target is None or len(target.split()) < 10:
+            continue
 
         # import pdb; pdb.set_trace()
 
@@ -107,10 +111,6 @@ with open(args.dataset, 'r') as generations:
 
         generated_seqs.append(generated_seq)
         human_seqs.append(target)
-        # generated_seqs.append(target)
-        # human_seqs.append(prefix)
-        # generated_seqs.append(' '.join((prefix, generated_seq)))
-        # human_seqs.append(' '.join((prefix, target)))
 
     mauve = mauve.compute_mauve(p_text=generated_seqs, q_text=human_seqs, device_id=0, verbose=True, batch_size=16, max_text_length=768,)
     print(f"Mauve Score = {mauve}")
