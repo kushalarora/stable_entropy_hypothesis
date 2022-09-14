@@ -146,7 +146,7 @@ with open(args.dataset, 'r') as generations:
     for line in generations:
         data = json.loads(line.strip())
 
-        prefix = data['prefix'].strip()
+        prefix = data['prefix']
         generated_seq = data['generation'].strip()
         target = data['target'].strip()
         
@@ -159,8 +159,8 @@ with open(args.dataset, 'r') as generations:
         # generated_seq = ' '.join([str(x) for x in nlp(generated_seq).sents])
         # target = ' '.join(nlp(target).sents)
 
-        generated_seqs.append(generated_seq)
-        human_seqs.append(target)
+        generated_seqs.append(prefix + " " + generated_seq)
+        human_seqs.append(prefix + " " + target)
 
         token_overlaps.append(f1_score(generated_seq, target, stopwords=stopwords.words('english'), gram=args.gram)[-1])
         rep_score, avg_rep_len, ngram_repeat = repeat_score(prefix, generated_seq, 5)
@@ -179,7 +179,7 @@ with open(args.dataset, 'r') as generations:
         outputs[f'ngram_repeat@{i}'] = np.mean(ngs)
 
     mauve_filename = args.dataset + ".mauve"
-    generated_seq_hash = abs(hash(args.dataset)) + np.sum([abs(hash(seq)) for seq in generated_seqs])
+    generated_seq_hash = abs(hash(args.dataset)) + abs(hash(" ".join(generated_seqs)))
     
     compute_mauve_score = not os.path.exists(mauve_filename)
     if not compute_mauve_score:
@@ -195,9 +195,10 @@ with open(args.dataset, 'r') as generations:
 
         with open(mauve_filename, 'wb') as mauve_file:
             mauve_score = pickle.dump(mauve_score_dict, mauve_file)
-
+    
+    print(f"Dataset: {args.dataset}")
     print(f"Mauve Score = {mauve_score_dict['mauve']}")
-    outputs["mauve"] = mauve.mauve
+    outputs["mauve"] = mauve_score_dict['mauve']
 
     with open(args.dataset + ".score", "w") as score_file:
         print(json.dumps(outputs, indent=4), file=score_file)
