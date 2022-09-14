@@ -319,6 +319,7 @@ def get_tokenizer(model_args):
         "use_fast": model_args.use_fast_tokenizer,
         "revision": model_args.model_revision,
         "use_auth_token": True if model_args.use_auth_token else None,
+        "padding_side": "left",
     }
     
     if model_args.tokenizer_name:

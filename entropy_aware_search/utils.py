@@ -2,10 +2,11 @@ import os
 from shutil import register_unpack_format
 from typing import List, Union
 
-
 import copy
 import json
 import pandas as pd
+import math
+
 import numpy as np
 import torch.nn.functional as F
 from termcolor import colored
@@ -147,9 +148,9 @@ def predict(model, tokenizer, context: str, model_text: str, width=1, max_len=12
     else:
         tokenized_context = tokenizer(context, return_tensors="pt")
         prompt_len = tokenized_context['input_ids'].shape[1]
-        tokenized_model_text = tokenizer(model_text, max_length=max_len-prompt_len, return_tensors="pt")
+        tokenized_model_text = tokenizer(model_text, max_length=1024-prompt_len, return_tensors="pt")
 
-        batch = tokenizer(context, model_text, max_length=max_len, return_tensors="pt")
+        batch = tokenizer(context, model_text, max_length=1024, return_tensors="pt")
         
         batch = batch.to(device)
         tokenized_model_text = tokenized_model_text.to(device)
@@ -251,8 +252,8 @@ def compute_average_across_sequences(dataframe, model, tokenizer,
          max_source_len=None,):
 
     cache_dirname = "/home/mila/a/arorakus/wdir/entropy_aware_search/data/cahced/"
-    dataframe_hash = str(pd.util.hash_pandas_object(dataframe).sum())
-    model_hash = str(hash(model.config._name_or_path))
+    dataframe_hash = str(abs(hash(dataframe.to_string())))
+    model_hash = str(abs(hash(model.config._name_or_path)))
     cached_filename_prefix = os.path.join(cache_dirname, 
         f"{dataframe_hash}-{model_hash}-"+
         f"{column_prefix}-{str(max_len)}-{str(num_seq)}-{to_be_averaged}-{str(width)}")
