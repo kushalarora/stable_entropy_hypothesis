@@ -15,7 +15,11 @@ import collections as cll
 # import spacy
 import math
 import pickle
+import pandas as pd
 # nlp = spacy.load("en_core_web_md")
+
+from entropy_aware_search.hf_utils import DataArguments, ModelArguments, get_tokenizer, get_model
+from entropy_aware_search.utils import compute_average_across_sequences, predict
 
 def f1_score(prediction, ground_truth, gram=1, stopwords=None):
     """Calculate word level F1 score."""
@@ -125,32 +129,126 @@ def repeat_score(prefix, generated, upto_ngrams=5):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', default="/home/mila/a/arorakus/wdir/entropy_aware_search/data/wiki_rankgen/generated/gpt2_xl/greedy.csv")
+parser.add_argument('--dataset', default="/home/mila/a/arorakus/wdir/entropy_aware_search/data/wiki_rankgen/generated/gpt2_xl/greedy.jsonl")
+parser.add_argument('--compute_entropy_voilations', action='store_true')
+parser.add_argument('--human_dataset', default='/home/mila/a/arorakus/wdir/entropy_aware_search/data/wiki_rankgen/generated/orig.jsonl')
 parser.add_argument('--eval_type', default="max")
 parser.add_argument('--gram', default=1, type=int)
 parser.add_argument('--rep_window', default=20, type=int)
 parser.add_argument('--plot_divergence', action='store_true')
 parser.add_argument('--eval_mauve', action='store_true')
+parser.add_argument('--model_name_or_path', default="gpt2-xl")
+
 args = parser.parse_args()
 
+def compute_entropy_voilations(prefixes, human_texts, generated_texts, model_name = 'gpt2-xl', max_len=128, num_seq=1000, width=5, is_seq2seq=False, max_source_len=-1, std_margin=1.5):
+
+    # get model and tokenizer.
+    model_args = ModelArguments(
+        model_name_or_path=model_name,   
+    )
+    gpt2_model = get_model(model_args)
+    gpt2_model.to('cuda')
+    tokenizer = get_tokenizer(model_args)
+    tokenizer.pad_token = tokenizer.eos_token
+    gpt2_model = gpt2_model.to('cuda')
+
+    # Compute human avg smoothened entropy.
+    human_dataframe = pd.DataFrame({
+        'context': prefixes,
+        'model_text': human_texts
+    })
+    _, human_ma_entropies = compute_average_across_sequences(human_dataframe, gpt2_model, tokenizer,                            
+                                column_prefix='human_generated', width=width,  max_len=max_len, 
+                                to_be_averaged='entropy_ma', num_seq=num_seq, cache=True)
+
+    human_entropy_mean = np.ma.mean(human_ma_entropies, axis=0)
+    human_entropy_std = np.ma.std(human_ma_entropies, axis=0)
+
+    generated_dataframe = pd.DataFrame({
+        'context': prefixes,
+        'model_text': generated_texts
+    })
+
+    entropy_violations = 0
+    count = 0
+    upper_bound_violations = 0
+    lower_bound_violations = 0
+    entropy_violation_arr = [0.] * max_len
+    upper_bound_violation_arr = [0.] * max_len
+    lower_bound_violation_arr = [0.] * max_len
+    count_arr = [0.] * max_len
+    for j, (_,datapoint) in enumerate(generated_dataframe.sample(num_seq).iterrows()):
+        labeled_data = predict(model=gpt2_model, 
+                                tokenizer=tokenizer, 
+                                context=datapoint.context,
+                                model_text=datapoint.model_text,
+                                width=width, max_len=max_len, 
+                                is_seq2seq=is_seq2seq,
+                                max_source_len=max_source_len)
+        
+        entropy_ma = labeled_data['entropy_ma']
+
+        for l in range(min(len(entropy_ma), len(human_entropy_mean), max_len)):
+            entropy_violation = False
+            if entropy_ma[l] > human_entropy_mean[l] + std_margin * human_entropy_std[l]:
+                entropy_violation = True
+                upper_bound_violations += 1
+                upper_bound_violation_arr[l] += 1
+
+            elif entropy_ma[l] < human_entropy_mean[l] - std_margin * human_entropy_std[l]:
+                entropy_violation = True
+                lower_bound_violations += 1
+                lower_bound_violation_arr[l] += 1
+            if entropy_violation:
+                entropy_violations+= 1
+                entropy_violation_arr[l] += 1
+    
+            count += 1
+            count_arr[l] += 1
+        
+        for l in range(max_len):
+            if count_arr[l] == 0:
+                continue
+            
+            entropy_violation_arr[l] /= count_arr[l]
+            lower_bound_violation_arr[l] /= count_arr[l]
+            upper_bound_violation_arr[l] /= count_arr[l]
+
+    return {
+        'entropy_violation_ratio': entropy_violations/count, 
+        'upper_bound_violation_ratio': upper_bound_violations/count, 
+        'lower_bound_violation_ratio': lower_bound_violations/count,
+        'entropy_violation_arr': entropy_violation_arr,
+        'lower_bound_violation_arr': lower_bound_violation_arr,
+        'upper_bound_violation_arr': upper_bound_violation_arr,
+        'count_arr': count_arr,
+    }
+
+with open(args.dataset, 'r') as dataset_file:
+    targets = []
+    generations = []
+    prefixes = []
 
 
-
-with open(args.dataset, 'r') as generations:
     generated_seqs = []
     human_seqs = []
     token_overlaps = []
     repeat_scores = []
     avg_rep_lens = []
     ngram_repeats = {1: [], 2: [], 3: [], 4:[], 5:[]}
-    for line in generations:
+    for line in dataset_file:
         data = json.loads(line.strip())
 
         prefix = data['prefix']
-        generated_seq = data['generation'].strip()
+        generation = data['generation'].strip()
         target = data['target'].strip()
         
-        if generated_seq is None or len(generated_seq.split()) < 10 or \
+        prefixes.append(prefix)
+        generations.append(generation)
+        targets.append(target)
+
+        if generation is None or len(generation.split()) < 10 or \
             target is None or len(target.split()) < 10:
             continue
 
@@ -159,11 +257,11 @@ with open(args.dataset, 'r') as generations:
         # generated_seq = ' '.join([str(x) for x in nlp(generated_seq).sents])
         # target = ' '.join(nlp(target).sents)
 
-        generated_seqs.append(prefix + " " + generated_seq)
+        generated_seqs.append(prefix + " " + generation)
         human_seqs.append(prefix + " " + target)
 
-        token_overlaps.append(f1_score(generated_seq, target, stopwords=stopwords.words('english'), gram=args.gram)[-1])
-        rep_score, avg_rep_len, ngram_repeat = repeat_score(prefix, generated_seq, 5)
+        token_overlaps.append(f1_score(generation, target, stopwords=stopwords.words('english'), gram=args.gram)[-1])
+        rep_score, avg_rep_len, ngram_repeat = repeat_score(prefix, generation, 5)
         repeat_scores.append(rep_score)
         avg_rep_lens.append(avg_rep_len)
 
@@ -171,6 +269,7 @@ with open(args.dataset, 'r') as generations:
             ngram_repeats[i+1].append(rep_n)
 
     outputs = {
+        "dataset":  args.dataset,
         "f1_score":  np.mean(token_overlaps),
         "repeat_score@5": np.mean(repeat_scores),
         "avg_rep_lens@5": np.mean(avg_rep_lens),
@@ -178,6 +277,9 @@ with open(args.dataset, 'r') as generations:
     for i, ngs in ngram_repeats.items():
         outputs[f'ngram_repeat@{i}'] = np.mean(ngs)
 
+    entropy_voilation_dict = compute_entropy_voilations(prefixes, targets, 
+                                generations, args.model_name_or_path)
+    outputs.update(entropy_voilation_dict)
     mauve_filename = args.dataset + ".mauve"
     generated_seq_hash = abs(hash(args.dataset)) + abs(hash(" ".join(generated_seqs)))
     

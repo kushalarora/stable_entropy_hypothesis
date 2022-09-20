@@ -11,6 +11,7 @@ import logging
 import numpy as np
 import torch
 import json
+import os
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -133,6 +134,9 @@ def main():
 
     logger.info(args)
 
+
+    dirname = os.path.dirname(args.output_filename)
+    os.makedirs(dirname, exist_ok=True)
 
     with open(args.output_filename, 'w') as output_file:
         generated_output_sequences = []

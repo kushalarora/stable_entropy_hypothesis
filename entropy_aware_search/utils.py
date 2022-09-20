@@ -112,7 +112,6 @@ def repeat_analysis(context, model_text):
      }
 
 
-
 def predict(model, tokenizer, context: str, model_text: str, width=1, max_len=128, is_seq2seq=False, max_source_len=None):
     """
     Use model to predict given the context.
@@ -168,7 +167,6 @@ def predict(model, tokenizer, context: str, model_text: str, width=1, max_len=12
                         .gather(-1, next_tokens.unsqueeze(-1))\
                         .squeeze(-1)
     
-
     # top5_tokens = []
     # for i in range(len(batch.label_vec[0])):
     #     top5_tokens.append([])
@@ -309,6 +307,7 @@ def compute_average_across_sequences(dataframe, model, tokenizer,
     masked_avgs = np.ma.masked_array(values, mask=(values < 0))
     return avgs_pd, masked_avgs
 
+
 def print_sample(sample):
     context = sample.context.item()
     model_text = sample.model_text.item()
@@ -318,6 +317,7 @@ def print_sample(sample):
 
     print(f"Num 3 gram repeats: {sample.num_3_gram_repeat.item()}")
     print(f"Num 3 gram repeats normalized: {sample.num_3_gram_repeat_length_normalized.item()}")
+
 
 def print_with_colors(text, repeat_indices):
     colorized_tokens = []
