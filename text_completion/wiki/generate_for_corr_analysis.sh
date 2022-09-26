@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -ex
 
 mkdir -p data/wiki_rankgen/corr_analysis/gpt2_xl/
@@ -26,7 +26,7 @@ for run in 1 2 3 4 5; do
     for p in 0.25 0.5 0.75 0.9 0.95; 
     do
         filename="data/wiki_rankgen/corr_analysis/gpt2_xl/top_p_${p}_run_${run}.jsonl"
-        seed=$((1 + RANDOM % 10000))
+        seed=$((1 + RANDOM % 1000))
         if [ ! -f "${filename}" ] || [ $(($(wc -l < "${filename}") < 5000)) -eq 1 ];
         then
             echo "Running Nucleus Sampling: run=${run} || top-p=${p}."
