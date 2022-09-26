@@ -93,8 +93,9 @@ def main():
     parser.add_argument("--do_sample", action="store_true", help="Use Sampling Decoding.")
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--typical_p", type=float, default=None)
-    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--entropy_aware_search", action="store_true", help="Use entropy aware search.")
+    parser.add_argument("--version", type=int, default=None)
 
     args = parser.parse_args()
 
@@ -160,6 +161,7 @@ def main():
                 return_dict_in_generate=True,
                 # num_return_sequences=args.num_beams,
                 output_scores=True,
+                version=args.version,
             )
 
             batch_size, batch_len = batch['input_ids'].shape
@@ -181,9 +183,9 @@ def main():
                     in enumerate(zip(prompt_sequences, generated_output_sequences, targets, pct_entropy_voilations, entropies)):
                 print(f"=== GENERATED SEQUENCE {idx}-{generated_sequence_idx + 1} ===", end='\r')
             
-                prompt_sequence = prompt_sequence.strip()
-                generated_sequence = truncate(generated_sequence.strip())
-                target = target.strip()
+                prompt_sequence = prompt_sequence
+                generated_sequence = truncate(generated_sequence)
+                target = target
 
                 if (idx * args.batch_size + generated_sequence_idx) % 10 == 0:
                     print()
