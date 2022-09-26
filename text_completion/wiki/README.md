@@ -25,7 +25,9 @@ sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_
 
 sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/temp_0_5.jsonl  --temperature 0.5 --do_sample --fp16
 
-sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags.jsonl --temperature 1.2 --fp16 
+sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v2_k_30.jsonl --k 30 --version 2 --fp16 --entropy_aware_search
+
+sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v1_k_30.jsonl --k 30 --version 1 --fp16 --entropy_aware_search
 
 
 ```
