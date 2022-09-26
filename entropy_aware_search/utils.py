@@ -1,3 +1,4 @@
+import hashlib
 import os
 from shutil import register_unpack_format
 from typing import List, Union
@@ -12,9 +13,11 @@ import torch.nn.functional as F
 from termcolor import colored
 import torch
 
+from entropy_aware_search.hf_utils import DataArguments, ModelArguments, get_tokenizer, get_model
+
 COLUMNS = ['index', 'token', 'is_rep', 'is_lrep', 
             'is_crep', 'entropy', 'entropy_ma', 'dent', 
-            'ddent', 'dddent', 'probs']
+            'ddent', 'dddent', 'probs', 'rank']
 
 def entropy_from_scores(scores):
     logits = F.log_softmax(scores, dim=-1)
@@ -144,37 +147,38 @@ def predict(model, tokenizer, context: str, model_text: str, width=1, max_len=12
         model_scores = outputs[1]
 
         tokenized_context = batch
+        next_tokens = tokenized_model_text['input_ids']
+
     else:
         tokenized_context = tokenizer(context, return_tensors="pt")
         prompt_len = tokenized_context['input_ids'].shape[1]
-        tokenized_model_text = tokenizer(model_text, max_length=1024-prompt_len, return_tensors="pt")
 
         batch = tokenizer(context, model_text, max_length=1024, return_tensors="pt")
         
         batch = batch.to(device)
-        tokenized_model_text = tokenized_model_text.to(device)
         tokenized_context = tokenized_context.to(device)
         outputs = model(**batch)
         
-        model_scores = outputs[0][:, prompt_len:, :]
-    
+        model_scores = outputs[0][:, prompt_len:-1]
+        tokenized_model_text = tokenizer(model_text, max_length=1024-prompt_len, return_tensors="pt")
+        next_tokens = batch['input_ids'][:, prompt_len+1:]
+
     entropy = entropy_from_scores(model_scores)
     
-    next_tokens = tokenized_model_text['input_ids']
 
     model_probs = F.softmax(model_scores, dim=-1)
     next_token_probs = model_probs\
                         .gather(-1, next_tokens.unsqueeze(-1))\
                         .squeeze(-1)
     
-    # top5_tokens = []
-    # for i in range(len(batch.label_vec[0])):
-    #     top5_tokens.append([])
-    #     for j, x in enumerate(model_probs_sorted_idxs[0, i, :5]):
-    #         topk_token = model.dict.ind2tok[int(x)].replace("Ġ", " ")
-    #         top5_tokens[i].append((topk_token,                             
-    #             float(model_probs_sorted_vals[0, i, j])))
+    ranks = []
+    _, model_probs_sorted_idxs = torch.sort(model_probs, 
+                                    dim=-1, descending=True)
     
+    for i in range(len(next_tokens[0])):
+        ith_model_probs = model_probs_sorted_idxs[0, i].cpu().numpy() 
+        ranks.append(int(np.where(ith_model_probs == int(next_tokens[0,i]))[0]))
+        
     label_toks = tokenizer.convert_ids_to_tokens(tokenized_model_text['input_ids'][0])
     context_toks = tokenizer.convert_ids_to_tokens(tokenized_context['input_ids'][0])
 
@@ -205,7 +209,7 @@ def predict(model, tokenizer, context: str, model_text: str, width=1, max_len=12
         'tokens': label_toks,
         'context_tokens': context_toks,
         "probs": next_token_probs[0].cpu().tolist(),
-        # "top-5_tokens": top5_tokens,
+        "ranks": ranks,
         "entropy": entropy,
         "entropy_ma": entropy_ma,
         "dentropy":dent_dt,
@@ -233,14 +237,14 @@ def process_datapoint(model, tokenizer, datapoint, width=1, max_len=128, is_seq2
     # target_act = predict(model=model, context=context, model_text=eval_label, is_edc=True)
 
     for idx, (token, is_rep, is_lrep, is_crep, entropy, entropy_ma, 
-              dentropy, ddentropy, dddentropy, prob) in enumerate(zip(model_act['tokens'],
+              dentropy, ddentropy, dddentropy, prob, rank) in enumerate(zip(model_act['tokens'],
                     model_act['rep_idxs'], model_act['lrep_idxs'], model_act['crep_idxs'],
                     model_act['entropy'], model_act['entropy_ma'], model_act['dentropy'],
-                    model_act['ddentropy'], model_act['dddentropy'], model_act['probs'])):
+                    model_act['ddentropy'], model_act['dddentropy'], model_act['probs'], model_act['ranks'])):
         if token == '__end__':
             break
         outputs.append((idx, token, is_rep, is_lrep, is_crep, entropy, 
-                        entropy_ma, dentropy, ddentropy,  dddentropy, prob))
+                        entropy_ma, dentropy, ddentropy,  dddentropy, prob, rank))
     return pd.DataFrame(outputs, columns=COLUMNS)
 
 
@@ -250,8 +254,8 @@ def compute_average_across_sequences(dataframe, model, tokenizer,
          max_source_len=None,):
 
     cache_dirname = "/home/mila/a/arorakus/wdir/entropy_aware_search/data/cahced/"
-    dataframe_hash = str(abs(hash(dataframe.to_string())))
-    model_hash = str(abs(hash(model.config._name_or_path)))
+    dataframe_hash = str(hashlib.md5(dataframe.to_string().encode()).hexdigest())
+    model_hash = str(hashlib.md5(model.config._name_or_path.encode()).hexdigest())
     cached_filename_prefix = os.path.join(cache_dirname, 
         f"{dataframe_hash}-{model_hash}-"+
         f"{column_prefix}-{str(max_len)}-{str(num_seq)}-{to_be_averaged}-{str(width)}")
@@ -334,3 +338,91 @@ def print_with_colors(text, repeat_indices):
         colorized_tokens.append(colorized_token)
 
     return " ".join(colorized_tokens)
+
+
+
+def compute_entropy_voilations(prefixes, human_texts, generated_texts, model_name = 'gpt2-xl',
+         max_len=128, num_seq=1000, width=5, is_seq2seq=False, max_source_len=-1, std_margin=1.5):
+
+    # get model and tokenizer.
+    model_args = ModelArguments(
+        model_name_or_path=model_name,   
+    )
+    gpt2_model = get_model(model_args)
+    gpt2_model.to('cuda')
+    tokenizer = get_tokenizer(model_args)
+    tokenizer.pad_token = tokenizer.eos_token
+    gpt2_model = gpt2_model.to('cuda')
+
+    # Compute human avg smoothened entropy.
+    human_dataframe = pd.DataFrame({
+        'context': prefixes,
+        'model_text': human_texts
+    })
+    _, human_ma_entropies = compute_average_across_sequences(human_dataframe, gpt2_model, tokenizer,                            
+                                column_prefix='human_generated', width=width,  max_len=max_len, 
+                                to_be_averaged='entropy_ma', num_seq=num_seq, cache=True)
+
+    human_entropy_mean = np.ma.mean(human_ma_entropies, axis=0)
+    human_entropy_std = np.ma.std(human_ma_entropies, axis=0)
+
+    generated_dataframe = pd.DataFrame({
+        'context': prefixes,
+        'model_text': generated_texts
+    })
+
+    entropy_violations = 0
+    count = 0
+    upper_bound_violations = 0
+    lower_bound_violations = 0
+    entropy_violation_arr = [0.] * max_len
+    upper_bound_violation_arr = [0.] * max_len
+    lower_bound_violation_arr = [0.] * max_len
+    count_arr = [0.] * max_len
+    for j, (_,datapoint) in enumerate(generated_dataframe.sample(num_seq).iterrows()):
+        labeled_data = predict(model=gpt2_model, 
+                                tokenizer=tokenizer, 
+                                context=datapoint.context,
+                                model_text=datapoint.model_text,
+                                width=width, max_len=max_len, 
+                                is_seq2seq=is_seq2seq,
+                                max_source_len=max_source_len)
+        
+        entropy_ma = labeled_data['entropy_ma']
+
+        for l in range(min(len(entropy_ma), len(human_entropy_mean), max_len)):
+            entropy_violation = False
+            if entropy_ma[l] > human_entropy_mean[l] + std_margin * human_entropy_std[l]:
+                entropy_violation = True
+                upper_bound_violations += 1
+                upper_bound_violation_arr[l] += 1
+
+            elif entropy_ma[l] < human_entropy_mean[l] - std_margin * human_entropy_std[l]:
+                entropy_violation = True
+                lower_bound_violations += 1
+                lower_bound_violation_arr[l] += 1
+            
+            if entropy_violation:
+                entropy_violations+= 1
+                entropy_violation_arr[l] += 1
+    
+            count += 1
+            count_arr[l] += 1
+        
+    for l in range(max_len):
+        if count_arr[l] == 0:
+            continue
+        
+        entropy_violation_arr[l] /= count_arr[l]
+        lower_bound_violation_arr[l] /= count_arr[l]
+        upper_bound_violation_arr[l] /= count_arr[l]
+
+    return {
+        'entropy_violation_ratio': entropy_violations/count, 
+        'upper_bound_violation_ratio': upper_bound_violations/count, 
+        'lower_bound_violation_ratio': lower_bound_violations/count,
+        'entropy_violation_arr': entropy_violation_arr,
+        'lower_bound_violation_arr': lower_bound_violation_arr,
+        'upper_bound_violation_arr': upper_bound_violation_arr,
+        'count_arr': count_arr,
+    }
