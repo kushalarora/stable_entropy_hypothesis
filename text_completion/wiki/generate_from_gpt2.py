@@ -167,11 +167,11 @@ def main():
             batch_size, batch_len = batch['input_ids'].shape
             generated_outputs = outputs['sequences'][:, batch_len:]
 
-            pct_entropy_voilations = [-1] * batch_size
+            pct_entropy_violations = [-1] * batch_size
             entropies = [[]] * batch_size
 
             if args.entropy_aware_search:
-                pct_entropy_voilations =  outputs['pct_entropy_voilations'].cpu().tolist()
+                pct_entropy_violations =  outputs['pct_entropy_violations'].cpu().tolist()
                 entropies = outputs['entropies'].cpu().tolist()
 
             input_ids = batch['input_ids']
@@ -179,8 +179,8 @@ def main():
             prompt_sequences = tokenizer.batch_decode(input_ids, skip_special_tokens=True)
             targets = batch_targets
         
-            for generated_sequence_idx, (prompt_sequence, generated_sequence, target, seq_pct_voilations, seq_entropy) \
-                    in enumerate(zip(prompt_sequences, generated_output_sequences, targets, pct_entropy_voilations, entropies)):
+            for generated_sequence_idx, (prompt_sequence, generated_sequence, target, pct_violations, seq_entropy) \
+                    in enumerate(zip(prompt_sequences, generated_output_sequences, targets, pct_entropy_violations, entropies)):
                 print(f"=== GENERATED SEQUENCE {idx}-{generated_sequence_idx + 1} ===", end='\r')
             
                 prompt_sequence = prompt_sequence
@@ -198,7 +198,7 @@ def main():
                     print('*' * 100)
                     print()
                     if args.entropy_aware_search:
-                        print(f"\tPercent Voilations: {seq_pct_voilations}")
+                        print(f"\tPercent violations: {pct_violations}")
                         print(f"\tEntropies: {printable_list(seq_entropy, ' ', precision=1)}")
                     print('*' * 100)
                     print()
@@ -207,7 +207,7 @@ def main():
                     'prefix': prompt_sequence, 
                     'generation': generated_sequence, 
                     'target': target,
-                    'pct_voilations': -1,
+                    'pct_violations': pct_violations,
                     'seq_mean_entropies': seq_entropy
                 }
 

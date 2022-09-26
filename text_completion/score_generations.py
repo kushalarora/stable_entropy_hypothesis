@@ -25,7 +25,7 @@ keys = ['dataset', 'f1_score',
         'repeat_score@5', 'avg_rep_lens@5','entropy_violation_ratio',
         'upper_bound_violation_ratio', 'lower_bound_violation_ratio',
          'ngram_repeat@1', 'ngram_repeat@2', 'ngram_repeat@3', 
-        'ngram_repeat@4', 'ngram_repeat@5']
+        'ngram_repeat@4', 'ngram_repeat@5', 'mauve']
 def pretty_print_outputs(outputs):
     print(pd.DataFrame(
             ((key, outputs[key]) for key in keys)

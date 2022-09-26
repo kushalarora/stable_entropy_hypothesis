@@ -26,10 +26,11 @@ for run in 1 2 3 4 5; do
     for p in 0.25 0.5 0.75 0.9 0.95; 
     do
         filename="data/wiki_rankgen/corr_analysis/gpt2_xl/top_p_${p}_run_${run}.jsonl"
+        seed=$((1 + RANDOM % 10000))
         if [ ! -f "${filename}" ] || [ $(($(wc -l < "${filename}") < 5000)) -eq 1 ];
         then
             echo "Running Nucleus Sampling: run=${run} || top-p=${p}."
-            sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename ${filename}  --p ${p} --do_sample --fp16;
+            sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename ${filename}  --p ${p} --do_sample --fp16 --seed ${seed};
         fi
     done
 
@@ -39,7 +40,7 @@ for run in 1 2 3 4 5; do
         if [ ! -f "${filename}" ] || [ $(($(wc -l < "${filename}") < 5000)) -eq 1 ];
         then
             echo "Running Top-k Sampling: run=${run} || top-k=${k}."
-            sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename ${filename}  --k ${k} --do_sample --fp16;
+            sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename ${filename}  --k ${k} --do_sample --fp16 --seed ${seed};
         fi
     done
 
@@ -49,7 +50,7 @@ for run in 1 2 3 4 5; do
         if [ ! -f "${filename}" ] || [ $(($(wc -l < "${filename}") < 5000)) -eq 1 ];
         then
             echo "Running Typical Sampling: run=${run} || tau=${tau}."
-            sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename ${filename}  --typical_p ${tau} --do_sample --fp16;
+            sbatch -t 8:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename ${filename}  --typical_p ${tau} --do_sample --seed ${seed} --batch_size 16;
         fi
     done
 
@@ -59,7 +60,7 @@ for run in 1 2 3 4 5; do
         if [ ! -f "${filename}" ] || [ $(($(wc -l < "${filename}") < 5000)) -eq 1 ];
         then
             echo "Running Temperature Sampling: run=${run} || temp=${temp}."
-            sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename ${filename} --temperature ${temp} --do_sample --batch_size 16;
+            sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename ${filename} --temperature ${temp} --do_sample --seed ${seed} --fp16;
         fi
     done
 done

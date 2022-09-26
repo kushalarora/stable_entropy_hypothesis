@@ -7,7 +7,7 @@ wiki_dataset = get_wiki_dataset("/home/mila/a/arorakus/wdir/entropy_aware_search
 
 with open('/home/mila/a/arorakus/wdir/entropy_aware_search/data/wiki_rankgen/generated/orig.jsonl', 'w') as orig_file:
     for datapoint in wiki_dataset:
-        prompt_sequence = datapoint['prefix'].strip()
+        prompt_sequence = datapoint['prefix']
         generated_sequence = datapoint['targets'][0]
 
         output = {
