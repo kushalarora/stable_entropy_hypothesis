@@ -25,9 +25,13 @@ sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_
 
 sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/temp_0_5.jsonl  --temperature 0.5 --do_sample --fp16
 
-sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v2_k_30.jsonl --k 30 --version 2 --fp16 --entropy_aware_search
+sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v2_k_30.jsonl --k 30 --eags_version 2 --fp16 --entropy_aware_search
 
-sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v1_k_30.jsonl --k 30 --version 1 --fp16 --entropy_aware_search
+sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v1_k_30.jsonl --k 30 --eags_version 1 --fp16 --entropy_aware_search
 
+sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v3_k_30.jsonl --k 30 --eags_version 3 --fp16 --entropy_aware_search
 
+sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v3_temp_1.jsonl --temperature 1 --eags_version 3 --fp16 --entropy_aware_search
+
+sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v3_typical_0.2.jsonl --typical_p 0.2 --eags_version 3 --fp16 --entropy_aware_search --ea_human_mean_coeffs -0.0 -0.00215 2.87407 --ea_human_std_coeffs 2e-05 -0.00373 0.97924
 ```
