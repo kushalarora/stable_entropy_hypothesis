@@ -12,6 +12,7 @@
 ###########################
 
 set -x
+module load libffi
 
 export NUM_GPUS=${NUM_GPUS:=2}
 export TOKENIZERS_PARALLELISM=true
