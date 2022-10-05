@@ -272,6 +272,10 @@ def compute_average_across_sequences(dataframe, model, tokenizer,
         os.path.exists(cached_ndarray_filename) and \
             os.path.join(cached_pd_filename) and \
                 not overwrite:
+        print(f"Loading from:")
+        print(f"\t{cached_ndarray_filename}, and")
+        print(f"\t{cached_pd_filename}")
+
         values = np.load(cached_ndarray_filename)
         avgs_pd = pd.read_csv(cached_pd_filename)
 
@@ -303,11 +307,14 @@ def compute_average_across_sequences(dataframe, model, tokenizer,
         avgs_pd = pd.DataFrame(avgs,  columns=[column_prefix + '_' + to_be_averaged])
 
         if cache and \
-            (not (os.path.exists(cached_ndarray_filename) and 
-                os.path.join(cached_pd_filename)) or overwrite):
+            not found or overwrite:
 
             np.save(cached_ndarray_filename, values)
             avgs_pd.to_csv(cached_pd_filename)
+            print(f"Saving to:")
+            print(f"\t{cached_ndarray_filename}, and")
+            print(f"\t{cached_pd_filename}")
+
     masked_avgs = np.ma.masked_array(values, mask=(values < 0))
     return avgs_pd, masked_avgs
 
