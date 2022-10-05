@@ -19,7 +19,7 @@ import pandas as pd
 # nlp = spacy.load("en_core_web_md")
 import hashlib
 
-from entropy_aware_search.utils import compute_entropy_voilations 
+from entropy_aware_search.utils import compute_entropy_voilations, compute_ngram_repeats
 
 keys = ['dataset', 'f1_score', 
         'repeat_score@5', 'avg_rep_lens@5','entropy_violation_ratio',
@@ -90,29 +90,6 @@ def rep_statistic(prefix, suffix, window=20):
     else:
         return np.mean(reps)
 
-def compute_ngram_repeats(prefix, generated, ngram_sz):
-    cgrams = {}
-    # compute N grams of the context
-    text = prefix.split()
-    for i in range((ngram_sz-1), len(text)):
-        ngram = ' '.join(text[i - (ngram_sz-1) : i + 1])
-        cgrams[ngram] = True
-
-    # compute N grams of the model response
-    creps = 0
-    lreps = 0
-
-    text = generated.split()
-    lgrams = {}
-    for i in range((ngram_sz-1), len(text)):
-        ngram = ' '.join(text[i - (ngram_sz-1) : i + 1])
-        if ngram in cgrams:
-            creps = creps + 1
-        else:
-            if ngram in lgrams:
-                lreps = lreps + 1
-        lgrams[ngram] = True
-    return creps + lreps
 
 def repeat_score(prefix, generated, upto_ngrams=5):
     cuml_rep_score = 0
@@ -120,7 +97,7 @@ def repeat_score(prefix, generated, upto_ngrams=5):
     _1gram_reps = 0
     ngram_repeats = []
     for n in range(1, upto_ngrams+1):
-        reps = compute_ngram_repeats(prefix, generated, n)
+        reps, *_ = compute_ngram_repeats(prefix, generated, n)
         if n == 1:
             _1gram_reps = reps
 
