@@ -93,9 +93,12 @@ def main():
     parser.add_argument("--do_sample", action="store_true", help="Use Sampling Decoding.")
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--typical_p", type=float, default=None)
-    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--entropy_aware_search", action="store_true", help="Use entropy aware search.")
-    parser.add_argument("--version", type=int, default=None)
+    parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+', default=[-0.00277, 2.88702])
+    parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+', default=[-0.00064, 0.91427])
+    parser.add_argument("--eags_version", type=int, default=3)
+    parser.add_argument('--ea_human_entropy_std_band', type=float, default=1.5)
 
     args = parser.parse_args()
 
@@ -159,19 +162,27 @@ def main():
                 do_sample=args.do_sample,
                 entropy_aware_search=args.entropy_aware_search,
                 return_dict_in_generate=True,
-                # num_return_sequences=args.num_beams,
                 output_scores=True,
-                version=args.version,
+                version=args.eags_version,
+                human_mean_coeffs=args.ea_human_mean_coeffs,
+                human_std_coeffs=args.ea_human_std_coeffs,
+                human_std_band=args.ea_human_entropy_std_band,
             )
 
             batch_size, batch_len = batch['input_ids'].shape
             generated_outputs = outputs['sequences'][:, batch_len:]
 
             pct_entropy_violations = [-1] * batch_size
+            pct_upper_entropy_violations = [-1] * batch_size
+            pct_lower_entropy_violations = [-1] * batch_size
+
             entropies = [[]] * batch_size
 
             if args.entropy_aware_search:
                 pct_entropy_violations =  outputs['pct_entropy_violations'].cpu().tolist()
+                pct_upper_entropy_violations =  outputs['pct_upper_entropy_violations'].cpu().tolist()
+                pct_lower_entropy_violations =  outputs['pct_lower_entropy_violations'].cpu().tolist()
+
                 entropies = outputs['entropies'].cpu().tolist()
 
             input_ids = batch['input_ids']
@@ -179,8 +190,12 @@ def main():
             prompt_sequences = tokenizer.batch_decode(input_ids, skip_special_tokens=True)
             targets = batch_targets
         
-            for generated_sequence_idx, (prompt_sequence, generated_sequence, target, pct_violations, seq_entropy) \
-                    in enumerate(zip(prompt_sequences, generated_output_sequences, targets, pct_entropy_violations, entropies)):
+            for generated_sequence_idx, (prompt_sequence, generated_sequence, target, 
+                                            pct_violations, pct_upper_violations, pct_lower_violations, 
+                                            seq_entropy) \
+                    in enumerate(zip(prompt_sequences, generated_output_sequences, targets, 
+                        pct_entropy_violations, pct_upper_entropy_violations, pct_lower_entropy_violations, 
+                        entropies)):
                 print(f"=== GENERATED SEQUENCE {idx}-{generated_sequence_idx + 1} ===", end='\r')
             
                 prompt_sequence = prompt_sequence
@@ -199,6 +214,9 @@ def main():
                     print()
                     if args.entropy_aware_search:
                         print(f"\tPercent violations: {pct_violations}")
+                        print(f"\tPercent upper violations: {pct_upper_violations}")
+                        print(f"\tPercent lower violations: {pct_lower_violations}")
+
                         print(f"\tEntropies: {printable_list(seq_entropy, ' ', precision=1)}")
                     print('*' * 100)
                     print()
@@ -208,6 +226,8 @@ def main():
                     'generation': generated_sequence, 
                     'target': target,
                     'pct_violations': pct_violations,
+                    'pct_upper_violations': pct_upper_violations,
+                    'pct_lower_violations': pct_lower_violations,
                     'seq_mean_entropies': seq_entropy
                 }
 
