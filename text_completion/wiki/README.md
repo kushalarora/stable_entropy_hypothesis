@@ -33,5 +33,7 @@ sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_
 
 sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v3_temp_1.jsonl --temperature 1 --eags_version 3 --fp16 --entropy_aware_search
 
-sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v3_typical_0.2.jsonl --typical_p 0.2 --eags_version 3 --fp16 --entropy_aware_search --ea_human_mean_coeffs -0.0 -0.00215 2.87407 --ea_human_std_coeffs 2e-05 -0.00373 0.97924
+sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v3_typical_0.2.jsonl --typical_p 0.2 --version 3 --fp16 --entropy_aware_search --ea_upper_limit_coeffs -0.0 0.00033 -0.01698 5.5549 --ea_lower_limit_coeffs -0.0 1e-05 0.00102 1.43047
+
+sbatch -t 10:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v4_typical_0.2.jsonl --typical_p 0.2 --version 4 --fp16 --entropy_aware_search --ea_human_mean_coeffs -0.00277 2.88702 --ea_human_std_coeffs -0.00064 0.91427 --batch_size 8
 ```
