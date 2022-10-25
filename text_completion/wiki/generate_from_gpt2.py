@@ -97,14 +97,14 @@ def main():
     parser.add_argument("--typical_p", type=float, default=None)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--entropy_aware_search", action="store_true", help="Use entropy aware search.")
-    parser.add_argument("--ea_upper_limit_coeffs", type=float, nargs='+', default=[-7e-05, 0.00335, 4.48331])
-    parser.add_argument("--ea_lower_limit_coeffs", type=float, nargs='+', default=[-3e-05, 0.00158, 1.89484])
-    parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+', default=[-0.00277, 2.88702])
-    parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+', default=[-0.00064, 0.91427])
+    parser.add_argument("--ea_upper_limit_coeffs", type=float, nargs='+')
+    parser.add_argument("--ea_lower_limit_coeffs", type=float, nargs='+')
+    parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+')
+    parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+')
     parser.add_argument("--version", type=int, default=3)
     parser.add_argument("--patience_window", type=int, default=5)
     parser.add_argument("--only_greedy_till", type=int, default=5)
-    parser.add_argument('--ea_human_entropy_std_band', type=float, default=1.5)
+    parser.add_argument('--ea_human_entropy_std_band', type=float, default=1.0)
 
 
     args = parser.parse_args()
@@ -183,12 +183,12 @@ def main():
                 human_std_band=args.ea_human_entropy_std_band,
             )
             end_time = timeit.default_timer()
+            batch_size, batch_len = batch['input_ids'].shape
 
             batch_compute_time = int(end_time - start_time)
             compute_time += batch_compute_time
             num_generations += batch_size
 
-            batch_size, batch_len = batch['input_ids'].shape
             generated_outputs = outputs['sequences'][:, batch_len:]
 
             pct_entropy_violations = [-1] * batch_size

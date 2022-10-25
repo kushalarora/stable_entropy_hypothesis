@@ -11,7 +11,7 @@ parser.add_argument('--max_len', default=128, type=int)
 parser.add_argument('--width', default=5, type=int)
 parser.add_argument('--max_num_seq', default=10000, type=int)
 parser.add_argument('--model_name_or_path', default="gpt2-xl")
-parser.add_argument('--degree', default=3, type=int)
+parser.add_argument('--degree', default=1, type=int)
 parser.add_argument('--std_dev', default=1.0, type=float)
 
 args = parser.parse_args()
