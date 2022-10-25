@@ -24,8 +24,8 @@ from entropy_aware_search.utils import compute_entropy_voilations, compute_ngram
 keys = ['dataset', 'f1_score', 
         'repeat_score@5', 'avg_rep_lens@5','entropy_violation_ratio',
         'upper_bound_violation_ratio', 'lower_bound_violation_ratio',
-         'ngram_repeat@1', 'ngram_repeat@2', 'ngram_repeat@3', 
-        'ngram_repeat@4', 'ngram_repeat@5', 'mauve']
+        'ngram_repeat@1', 'ngram_repeat@2', 'ngram_repeat@3', "num_generations",
+        'avg_compute_time_in_secs', 'ngram_repeat@4', 'ngram_repeat@5', 'mauve']
 def pretty_print_outputs(outputs):
     print(pd.DataFrame(
             ((key, outputs[key]) for key in keys)
@@ -138,13 +138,16 @@ with open(args.dataset, 'r') as dataset_file:
     repeat_scores = []
     avg_rep_lens = []
     ngram_repeats = {1: [], 2: [], 3: [], 4:[], 5:[]}
+    num_generations = 0
+    compute_time_in_secs = 0
     for line in dataset_file:
+        num_generations += 1
         data = json.loads(line.strip())
 
         prefix = data['prefix']
         generation = data['generation'].strip()
         target = data['target'].strip()
-        
+        compute_time_in_secs += float(data['compute_time'])
         prefixes.append(prefix)
         generations.append(generation)
         targets.append(target)
@@ -171,10 +174,14 @@ with open(args.dataset, 'r') as dataset_file:
 
     outputs = {
         "dataset":  args.dataset,
+        "num_generations": num_generations,
         "f1_score":  np.mean(token_overlaps),
         "repeat_score@5": np.mean(repeat_scores),
         "avg_rep_lens@5": np.mean(avg_rep_lens),
+        "avg_compute_time_in_secs": compute_time_in_secs/num_generations,
+        "total_compute_time": compute_time_in_secs,
     }
+
     for i, ngs in ngram_repeats.items():
         outputs[f'ngram_repeat@{i}'] = np.mean(ngs)
 

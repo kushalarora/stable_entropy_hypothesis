@@ -12,6 +12,8 @@ import numpy as np
 import torch
 import json
 import os
+import datetime
+import timeit
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -95,10 +97,15 @@ def main():
     parser.add_argument("--typical_p", type=float, default=None)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--entropy_aware_search", action="store_true", help="Use entropy aware search.")
+    parser.add_argument("--ea_upper_limit_coeffs", type=float, nargs='+', default=[-7e-05, 0.00335, 4.48331])
+    parser.add_argument("--ea_lower_limit_coeffs", type=float, nargs='+', default=[-3e-05, 0.00158, 1.89484])
     parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+', default=[-0.00277, 2.88702])
     parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+', default=[-0.00064, 0.91427])
-    parser.add_argument("--eags_version", type=int, default=3)
+    parser.add_argument("--version", type=int, default=3)
+    parser.add_argument("--patience_window", type=int, default=5)
+    parser.add_argument("--only_greedy_till", type=int, default=5)
     parser.add_argument('--ea_human_entropy_std_band', type=float, default=1.5)
+
 
     args = parser.parse_args()
 
@@ -141,14 +148,17 @@ def main():
 
     dirname = os.path.dirname(args.output_filename)
     os.makedirs(dirname, exist_ok=True)
-
-    with open(args.output_filename, 'w') as output_file:
+    compute_time = 0
+    num_generations = 0
+    with open(args.output_filename, 'w') as output_file, \
+        open(f"{args.output_filename}.metadata", 'w') as metadata_file:
         generated_output_sequences = []
         prompt_sequences = []
         targets = []
         for idx, batch_start in enumerate(range(0, len(wiki_testset), args.batch_size)):
             batch, batch_targets = tokenizer_method(wiki_testset[batch_start: batch_start+args.batch_size])
             batch = batch.to(args.device)
+            start_time = timeit.default_timer()
             outputs = model.generate(
                 **batch,
                 max_new_tokens=128,
@@ -163,11 +173,20 @@ def main():
                 entropy_aware_search=args.entropy_aware_search,
                 return_dict_in_generate=True,
                 output_scores=True,
-                version=args.eags_version,
+                version=args.version,
+                lower_limit_coeffs=args.ea_lower_limit_coeffs,
+                upper_limit_coeffs=args.ea_upper_limit_coeffs,
+                patience_window=args.patience_window,
+                only_greedy_till=args.only_greedy_till,
                 human_mean_coeffs=args.ea_human_mean_coeffs,
                 human_std_coeffs=args.ea_human_std_coeffs,
                 human_std_band=args.ea_human_entropy_std_band,
             )
+            end_time = timeit.default_timer()
+
+            batch_compute_time = int(end_time - start_time)
+            compute_time += batch_compute_time
+            num_generations += batch_size
 
             batch_size, batch_len = batch['input_ids'].shape
             generated_outputs = outputs['sequences'][:, batch_len:]
@@ -216,8 +235,8 @@ def main():
                         print(f"\tPercent violations: {pct_violations}")
                         print(f"\tPercent upper violations: {pct_upper_violations}")
                         print(f"\tPercent lower violations: {pct_lower_violations}")
-
-                        print(f"\tEntropies: {printable_list(seq_entropy, ' ', precision=1)}")
+                        print(f"\tCompute Time: {batch_compute_time/batch_size} secs")
+                        # print(f"\tEntropies: {printable_list(seq_entropy, ' ', precision=1)}")
                     print('*' * 100)
                     print()
 
@@ -228,10 +247,18 @@ def main():
                     'pct_violations': pct_violations,
                     'pct_upper_violations': pct_upper_violations,
                     'pct_lower_violations': pct_lower_violations,
-                    'seq_mean_entropies': seq_entropy
+                    'seq_mean_entropies': seq_entropy,
+                    'compute_time': batch_compute_time/batch_size,
                 }
 
                 print(json.dumps(output), file=output_file, flush=True)
 
+        opts = vars(args)
+        opts['compute_time'] = compute_time
+        opts['num_generations'] = num_generations
+        opts['avg_compute_time'] = compute_time/num_generations
+
+        print(json.dumps(output, indent=2, sort_keys=True), 
+                                file=metadata_file, flush=True)
 if __name__ == "__main__":
     main()
