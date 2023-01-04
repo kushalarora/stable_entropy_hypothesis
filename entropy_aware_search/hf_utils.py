@@ -232,7 +232,7 @@ def tokenize(datasets, tokenizer, preprocessing_num_workers = 4, overwrite_cache
     )
     return tokenized_datasets
 
-def group_into_blocks(datasets, block_size = 128, 
+def group_into_blocks(datasets, block_size=128, 
                       preprocessing_num_workers=4, 
                       overwrite_cache=False, 
                       data_key="input_ids"):
