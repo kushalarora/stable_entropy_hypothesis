@@ -1,6 +1,7 @@
 
 
 import json
+import time
 import timeit
 from torch.utils.data import DataLoader
 
@@ -15,9 +16,10 @@ import evaluate
 
 from datetime import datetime
 
+
 from datasets import load_dataset
 
-from transformers import BigBirdPegasusForConditionalGeneration, AutoTokenizer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -27,10 +29,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 MAX_LENGTH = int(10000)  # Hardcoded max length to avoid infinite loop
-experiment_id = "pegasus_bigbird_arxiv_" + datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
-
-rouge = evaluate.load("rouge", experiment_id=experiment_id, 
-                        cache_dir=f"/tmp/{experiment_id}.txt")
+experiment_id = "pegasus_cnn_dm"+ datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+rouge = evaluate.load("rouge", experiment_id=experiment_id)
 
 import numpy as np
 
@@ -53,7 +53,7 @@ def adjust_length_to_model(length, max_sequence_length):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output_filename", type=str, default="The output file to save the generation.")
-    parser.add_argument("--max_source_length", type=int, default=4096)
+    parser.add_argument("--length", type=int, default=1024)
     parser.add_argument("--stop_token", type=str, default="<|endoftext|>", help="Token at which text generation is stopped")
 
     parser.add_argument(
@@ -79,7 +79,7 @@ def main():
     parser.add_argument("--do_sample", action="store_true", help="Use Sampling Decoding.")
     parser.add_argument("--num_beams", type=int, default=5)
     parser.add_argument("--typical_p", type=float, default=None)
-    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--entropy_aware_search", action="store_true", help="Use entropy aware search.")
     parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+')
     parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+')
@@ -96,36 +96,22 @@ def main():
     set_seed(args)
 
     model_args = ModelArguments(
-        model_name_or_path="google/bigbird-pegasus-large-arxiv"
+        model_name_or_path="google/pegasus-cnn_dailymail"
     )
 
-    arxiv_summ_dataset = load_dataset("scientific_papers", "arxiv")
-  
-    model = BigBirdPegasusForConditionalGeneration.from_pretrained("google/bigbird-pegasus-large-arxiv")
+    cnn_dm_dataset = load_dataset("cnn_dailymail", "3.0.0")
+
+    model = AutoModelForSeq2SeqLM.from_pretrained("google/pegasus-cnn_dailymail")
 
     model = model.to(args.device)
 
-    args.max_source_length = adjust_length_to_model(args.max_source_length, max_sequence_length=model.config.max_position_embeddings)
+    args.length = adjust_length_to_model(args.length, max_sequence_length=model.config.max_position_embeddings)
 
-    tokenizer = AutoTokenizer.from_pretrained("google/bigbird-pegasus-large-arxiv")
+    tokenizer = AutoTokenizer.from_pretrained("google/pegasus-cnn_dailymail")
 
-
-    def compute_metrics(eval_pred):
-        predictions, labels = eval_pred
-        decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
-        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-        decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-
-        result = rouge.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
-
-        prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in predictions]
-        result["gen_len"] = np.mean(prediction_lens)
-
-        return {k: round(v, 4) for k, v in result.items()}
-    
     text_column = "article"
-    summary_column = "abstract"
-    max_source_length =  args.max_source_length
+    summary_column = "highlights"
+    max_source_length =  args.length
 
     def tokenizer_method(examples):
         # remove pairs where at least one record is None
@@ -143,7 +129,7 @@ def main():
         model.half()
 
     logger.info(args)
-    arxiv_summ_testset = arxiv_summ_dataset['test']
+    cnn_dm_testset = cnn_dm_dataset['test']
 
 
     compute_time = 0
@@ -152,13 +138,14 @@ def main():
     with open(args.output_filename, 'w') as output_file, \
         open(f"{args.output_filename}.rouge", 'w') as rouge_score_file:
         rouges_dict = {'rouge1': [], 'rouge2': [], 'rougeL': [], 'rougeLsum': []}
-        for idx, batch_start in enumerate(range(0, len(arxiv_summ_testset), args.batch_size)):
-            batch, targets = tokenizer_method(arxiv_summ_testset[batch_start: batch_start+args.batch_size])            
+        for idx, batch_start in enumerate(range(0, len(cnn_dm_testset), args.batch_size)):
+            batch, targets = tokenizer_method(cnn_dm_testset[batch_start: batch_start+args.batch_size])            
             batch = batch.to(args.device)
             start_time = timeit.default_timer()
+
             outputs = model.generate(
                 **batch,
-                max_length=256,
+                max_length=128,
                 temperature=args.temperature,
                 top_k=args.k,
                 top_p=args.p,
@@ -181,7 +168,7 @@ def main():
             compute_time += batch_compute_time
             num_generations += batch_size
 
-            generated_abstracts = tokenizer.batch_decode(outputs['sequences'],  skip_special_tokens=True)
+            generated_abstracts = tokenizer.batch_decode(outputs['sequences'][:, 1:],  skip_special_tokens=True)
             articles = tokenizer.batch_decode(batch['input_ids'],  skip_special_tokens=True)
 
             rouge_scores = rouge.compute(predictions=generated_abstracts, 
@@ -248,7 +235,6 @@ def main():
         for key,scores in rouges_dict.items():
             rouges_dict[key] = np.mean(scores)
 
-        print(json.dumps(rouges_dict, indent=True, sort_keys=True))
         print(json.dumps(rouges_dict, indent=True, sort_keys=True), file=rouge_score_file, flush=True)
 if __name__ == "__main__":
     main()
