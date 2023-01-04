@@ -13,8 +13,6 @@ import torch.nn.functional as F
 from termcolor import colored
 import torch
 
-from entropy_aware_search.hf_utils import DataArguments, ModelArguments, get_tokenizer, get_model
-
 COLUMNS = ['index', 'token', 'is_rep', 'is_lrep', 
             'is_crep', 'entropy', 'entropy_ma', 'dent', 
             'ddent', 'dddent', 'probs', 'rank']
@@ -150,7 +148,7 @@ def predict(model, tokenizer, context: str, model_text: str, width=1, max_len=12
         next_tokens = tokenized_model_text['input_ids']
 
     else:
-        tokenized_context = tokenizer(context, return_tensors="pt")
+        tokenized_context = tokenizer(context, max_length=768, return_tensors="pt")
         prompt_len = tokenized_context['input_ids'].shape[1]
 
         batch = tokenizer(context, model_text, max_length=1024, return_tensors="pt")
@@ -294,7 +292,7 @@ def compute_average_across_sequences(dataframe, model, tokenizer,
                                     is_seq2seq=is_seq2seq,
                                     max_source_len=max_source_len)
             
-            for i,ent in labeled_dataframe[to_be_averaged].iteritems():
+            for i,ent in labeled_dataframe[to_be_averaged].items():
                 if i >= max_len:
                     break
                 
@@ -347,28 +345,17 @@ def print_with_colors(text, repeat_indices):
     return " ".join(colorized_tokens)
 
 
-
-def compute_entropy_voilations(prefixes, human_texts, generated_texts, model_name = 'gpt2-xl',
+def compute_entropy_voilations(prefixes, human_texts, generated_texts, model, tokenizer,
          max_len=128, num_seq=1000, width=5, is_seq2seq=False, max_source_len=-1, std_margin=1.5):
-
-    # get model and tokenizer.
-    model_args = ModelArguments(
-        model_name_or_path=model_name,   
-    )
-    gpt2_model = get_model(model_args)
-    gpt2_model.to('cuda')
-    tokenizer = get_tokenizer(model_args)
-    tokenizer.pad_token = tokenizer.eos_token
-    gpt2_model = gpt2_model.to('cuda')
-
     # Compute human avg smoothened entropy.
     human_dataframe = pd.DataFrame({
         'context': prefixes,
         'model_text': human_texts
     })
-    _, human_ma_entropies = compute_average_across_sequences(human_dataframe, gpt2_model, tokenizer,                            
+    _, human_ma_entropies = compute_average_across_sequences(human_dataframe, model, tokenizer,                            
                                 column_prefix='human_generated', width=width,  max_len=max_len, 
-                                to_be_averaged='entropy_ma', num_seq=num_seq, cache=True)
+                                to_be_averaged='entropy_ma', num_seq=num_seq, cache=True,
+                                is_seq2seq=is_seq2seq, max_source_len=max_source_len)
 
     human_entropy_mean = np.ma.mean(human_ma_entropies, axis=0)
     human_entropy_std = np.ma.std(human_ma_entropies, axis=0)
@@ -387,7 +374,7 @@ def compute_entropy_voilations(prefixes, human_texts, generated_texts, model_nam
     lower_bound_violation_arr = [0.] * max_len
     count_arr = [0.] * max_len
     for j, (_,datapoint) in enumerate(generated_dataframe.sample(num_seq).iterrows()):
-        labeled_data = predict(model=gpt2_model, 
+        labeled_data = predict(model=model, 
                                 tokenizer=tokenizer, 
                                 context=datapoint.context,
                                 model_text=datapoint.model_text,
@@ -408,7 +395,7 @@ def compute_entropy_voilations(prefixes, human_texts, generated_texts, model_nam
                 entropy_violation = True
                 lower_bound_violations += 1
                 lower_bound_violation_arr[l] += 1
-            
+
             if entropy_violation:
                 entropy_violations+= 1
                 entropy_violation_arr[l] += 1
