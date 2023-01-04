@@ -99,11 +99,11 @@ def main():
     parser.add_argument("--entropy_aware_search", action="store_true", help="Use entropy aware search.")
     parser.add_argument("--ea_upper_limit_coeffs", type=float, nargs='+')
     parser.add_argument("--ea_lower_limit_coeffs", type=float, nargs='+')
-    parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+')
-    parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+')
-    parser.add_argument("--version", type=int, default=3)
-    parser.add_argument("--patience_window", type=int, default=5)
-    parser.add_argument("--only_greedy_till", type=int, default=5)
+    parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+', default=[-0.00277, 2.88702])
+    parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+', default=[-0.00064, 0.91427])
+    parser.add_argument("--ea_version", type=int, default=3)
+    parser.add_argument("--ea_patience_window", type=int, default=5)
+    parser.add_argument("--ea_only_greedy_till", type=int, default=0)
     parser.add_argument('--ea_human_entropy_std_band', type=float, default=1.0)
 
 
@@ -146,8 +146,6 @@ def main():
     logger.info(args)
 
 
-    dirname = os.path.dirname(args.output_filename)
-    os.makedirs(dirname, exist_ok=True)
     compute_time = 0
     num_generations = 0
     with open(args.output_filename, 'w') as output_file, \
@@ -173,14 +171,14 @@ def main():
                 entropy_aware_search=args.entropy_aware_search,
                 return_dict_in_generate=True,
                 output_scores=True,
-                version=args.version,
-                lower_limit_coeffs=args.ea_lower_limit_coeffs,
-                upper_limit_coeffs=args.ea_upper_limit_coeffs,
-                patience_window=args.patience_window,
-                only_greedy_till=args.only_greedy_till,
-                human_mean_coeffs=args.ea_human_mean_coeffs,
-                human_std_coeffs=args.ea_human_std_coeffs,
-                human_std_band=args.ea_human_entropy_std_band,
+                ea_version=args.ea_version,
+                ea_lower_limit_coeffs=args.ea_lower_limit_coeffs,
+                ea_upper_limit_coeffs=args.ea_upper_limit_coeffs,
+                ea_patience_window=args.ea_patience_window,
+                ea_only_greedy_till=args.ea_only_greedy_till,
+                ea_human_mean_coeffs=args.ea_human_mean_coeffs,
+                ea_human_std_coeffs=args.ea_human_std_coeffs,
+                ea_human_std_band=args.ea_human_entropy_std_band,
             )
             end_time = timeit.default_timer()
             batch_size, batch_len = batch['input_ids'].shape
@@ -217,7 +215,6 @@ def main():
                         entropies)):
                 print(f"=== GENERATED SEQUENCE {idx}-{generated_sequence_idx + 1} ===", end='\r')
             
-                prompt_sequence = prompt_sequence
                 generated_sequence = truncate(generated_sequence)
                 target = target
 

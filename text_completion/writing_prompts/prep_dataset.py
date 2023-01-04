@@ -18,10 +18,21 @@ for split in ('train', 'valid', 'test'):
         for target in target_file:
             targets.append(target)
 
+
+
         for (source, target) in zip(sources, targets):
+            source = source.strip()
+            target = target.strip()
+            if not source.startswith("[ WP ]"):
+                continue
+
+            if len(source.split()) < 15:
+                continue
+            
+            source = f"{source}\nStory: "
             data_dicts.append({
                 'prompt': source, 
-                'response': target
+                'response': target.replace(" <newline> <newline>", "\n"),
             })
         
         for data_dict in data_dicts:

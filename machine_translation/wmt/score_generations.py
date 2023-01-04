@@ -2,7 +2,6 @@ import argparse
 import json
 import random
 import numpy as np
-import mauve
 import pickle
 import glob
 import os
@@ -21,12 +20,13 @@ import hashlib
 
 from entropy_aware_search.utils import compute_entropy_voilations, compute_ngram_repeats
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
 keys = ['dataset', 'f1_score', 
         'repeat_score@5', 'avg_rep_lens@5','entropy_violation_ratio',
         'upper_bound_violation_ratio', 'lower_bound_violation_ratio',
         'ngram_repeat@1', 'ngram_repeat@2', 'ngram_repeat@3', "num_generations",
-        'avg_compute_time_in_secs', 'ngram_repeat@4', 'ngram_repeat@5', 'mauve']
+        'ngram_repeat@4', 'ngram_repeat@5']
 def pretty_print_outputs(outputs):
     print(pd.DataFrame(
             ((key, outputs[key]) for key in keys)
@@ -117,11 +117,13 @@ def repeat_score(prefix, generated, upto_ngrams=5):
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', default="/home/mila/a/arorakus/wdir/entropy_aware_search/data/wiki_rankgen/generated/gpt2_xl/greedy.jsonl")
 parser.add_argument('--compute_entropy_voilations', action='store_true')
+parser.add_argument('--human_dataset', default='/home/mila/a/arorakus/wdir/entropy_aware_search/data/wiki_rankgen/generated/orig.jsonl')
+parser.add_argument('--eval_type', default="max")
 parser.add_argument('--gram', default=1, type=int)
 parser.add_argument('--rep_window', default=20, type=int)
-parser.add_argument('--plot_divergence', action='store_true')
-parser.add_argument('--eval_mauve', action='store_true')
 parser.add_argument('--model_name_or_path', default="gpt2-xl")
+parser.add_argument("--max_source_length", type=int, default=256)
+parser.add_argument('--is_seq2seq', action="store_true")
 
 args = parser.parse_args()
 
@@ -130,6 +132,7 @@ with open(args.dataset, 'r') as dataset_file:
     generations = []
     prefixes = []
 
+
     generated_seqs = []
     human_seqs = []
     token_overlaps = []
@@ -137,18 +140,13 @@ with open(args.dataset, 'r') as dataset_file:
     avg_rep_lens = []
     ngram_repeats = {1: [], 2: [], 3: [], 4:[], 5:[]}
     num_generations = 0
-    compute_time_in_secs = 0
     for line in dataset_file:
         num_generations += 1
-        try:
-            data = json.loads(line.strip())
-        except:
-            continue 
-        
+        data = json.loads(line.strip())
+
         prefix = data['prefix']
         generation = data['generation'].strip()
         target = data['target'].strip()
-        # compute_time_in_secs += float(data['compute_time'])
         prefixes.append(prefix)
         generations.append(generation)
         targets.append(target)
@@ -165,10 +163,7 @@ with open(args.dataset, 'r') as dataset_file:
         generated_seqs.append(prefix + " " + generation)
         human_seqs.append(prefix + " " + target)
 
-        # generated_seqs.append(generation)
-        # human_seqs.append(target)
-
-        token_overlaps.append(f1_score(generation, target, stopwords=stopwords.words('english'), gram=args.gram)[-1])
+        token_overlaps.append(f1_score(generation, target, gram=args.gram)[-1])
         rep_score, avg_rep_len, ngram_repeat = repeat_score(prefix, generation, 5)
         repeat_scores.append(rep_score)
         avg_rep_lens.append(avg_rep_len)
@@ -182,40 +177,24 @@ with open(args.dataset, 'r') as dataset_file:
         "f1_score":  np.mean(token_overlaps),
         "repeat_score@5": np.mean(repeat_scores),
         "avg_rep_lens@5": np.mean(avg_rep_lens),
-        "avg_compute_time_in_secs": compute_time_in_secs/num_generations,
-        "total_compute_time": compute_time_in_secs,
     }
 
     for i, ngs in ngram_repeats.items():
         outputs[f'ngram_repeat@{i}'] = np.mean(ngs)
 
-    model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path)
+
+    model = AutoModelForSeq2SeqLM.from_pretrained(args.model_name_or_path)
     model = model.to("cuda")
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
-    tokenizer.pad_token_id = tokenizer.eos_token_id
+    tokenizer.src_lang = "de_DE"
+    tokenizer.tgt_lang = "en_XX"
+
 
     entropy_voilation_dict = compute_entropy_voilations(prefixes, targets, 
-                                generations, model, tokenizer)
+                                generations, model, tokenizer, 
+                                is_seq2seq=True, max_source_len=args.max_source_length,)
     outputs.update(entropy_voilation_dict)
-    mauve_filename = args.dataset + ".mauve"
     generated_seq_hash = hashlib.md5(" ".join(generated_seqs).encode()).hexdigest()
-    
-    compute_mauve_score = not os.path.exists(mauve_filename)
-    if not compute_mauve_score:
-        with open(mauve_filename, 'rb') as mauve_file:
-            mauve_score_dict = pickle.load(mauve_file)
-            if mauve_score_dict['hash'] != generated_seq_hash:
-                compute_mauve_score = True
-
-    if compute_mauve_score:
-        mauve_score = mauve.compute_mauve(p_text=generated_seqs, q_text=human_seqs, device_id=0, verbose=True, batch_size=16, max_text_length=768,)
-        mauve_score_dict = vars(mauve_score)
-        mauve_score_dict['hash'] = generated_seq_hash
-
-        with open(mauve_filename, 'wb') as mauve_file:
-            mauve_score = pickle.dump(mauve_score_dict, mauve_file)
-    
-    outputs["mauve"] = mauve_score_dict['mauve']
 
     with open(args.dataset + ".score", "w") as score_file:
         print(json.dumps(outputs, indent=4), file=score_file)

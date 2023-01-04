@@ -35,5 +35,10 @@ sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_
 
 sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v3_typical_0.2.jsonl --typical_p 0.2 --version 3 --fp16 --entropy_aware_search --ea_upper_limit_coeffs -0.0 0.00033 -0.01698 5.5549 --ea_lower_limit_coeffs -0.0 1e-05 0.00102 1.43047
 
-sbatch -t 10:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v4_typical_0.2.jsonl --typical_p 0.2 --version 4 --fp16 --entropy_aware_search --ea_human_mean_coeffs -0.00277 2.88702 --ea_human_std_coeffs -0.00064 0.91427 --batch_size 8
+sbatch -t 10:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/wiki_rankgen/generated/gpt2_xl/eags_v4_typical_0.2.jsonl --typical_p 0.2 --ea_version 4 --fp16 --entropy_aware_search --ea_human_mean_coeffs -0.00277 2.88702 --ea_human_std_coeffs -0.00064 0.91427 --batch_size 4
 ```
+
+
+sbatch -t 48:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path facebook/opt-1.3b --output_filename data/wiki_rankgen/generated/opt_1_3b/beam_5_opt_1.3b.jsonl --num_beams 5 --batch_size 4 --fp16
+
+python text_completion/score_generations.py --dataset data/wiki_rankgen/generated/opt_1_3b/beam_5_opt_1.3b.jsonl --model_name_or_path facebook/opt-1.3b

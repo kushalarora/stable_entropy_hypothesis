@@ -26,7 +26,7 @@ python text_completion/writing_prompts/prepare_dataset.py data/WritingPrompts/
 ```
 ### Fine-tune GPT-2 on writing prompt dataset.
 ```!#/bin/python
-python text_completion/writing_prompts/fine_tune_writing_prompts.py
+sbatch -t 1-00:00:00 --gres=gpu:3g.39gb:1 ./launcher_basic.sh python text_completion/writing_prompts/fine_tune_writing_prompts.py
 ```
 
 ### Generate from Fine-tuned GPT2 model

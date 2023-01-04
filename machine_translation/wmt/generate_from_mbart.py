@@ -1,17 +1,25 @@
 
 
+import json
+import time
+import timeit
+from torch.utils.data import DataLoader
 
 from entropy_aware_search.hf_utils import ModelArguments, get_tokenizer, get_model
-from utils import get_writing_prompt_dataset
+
 import argparse
 import logging
 
 import numpy as np
 import torch
-import json
-import os
-import datetime
-import timeit
+import evaluate
+
+from datetime import datetime
+
+
+from datasets import load_dataset
+
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -21,7 +29,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 MAX_LENGTH = int(10000)  # Hardcoded max length to avoid infinite loop
+experiment_id = "bart_cnn_dm"+ datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+bleu = evaluate.load("bleu", experiment_id=experiment_id)
 
+import numpy as np
 
 def set_seed(args):
     np.random.seed(args.seed)
@@ -38,33 +49,9 @@ def adjust_length_to_model(length, max_sequence_length):
         length = MAX_LENGTH  # avoid infinite loop
     return length
 
-def truncate(text):
-    last_punc = 0
-    if "." in text:
-        last_punc = max(last_punc, text.rindex("."))
-    if "?" in text:
-        last_punc = max(last_punc, text.rindex("?"))
-    if "!" in text:
-        last_punc = max(last_punc, text.rindex("!"))
-    if ";" in text:
-        last_punc = max(last_punc, text.rindex(";"))
-    if last_punc != 0:
-        text = text[:last_punc + 1]
-    return text
-
-def printable_list(list, seperator=',', precision=2):
-    return seperator.join([f"{round(x, precision)}" for x in list])
 
 def main():
     parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--model_name_or_path",
-        default="gpt2-xl",
-        type=str,
-        help="Path to pre-trained model or shortcut name",
-    )
-
     parser.add_argument("--output_filename", type=str, default="The output file to save the generation.")
     parser.add_argument("--length", type=int, default=1024)
     parser.add_argument("--stop_token", type=str, default="<|endoftext|>", help="Token at which text generation is stopped")
@@ -90,17 +77,14 @@ def main():
         help="Whether to use 16-bit (mixed) precision (through NVIDIA apex) instead of 32-bit",
     )
     parser.add_argument("--do_sample", action="store_true", help="Use Sampling Decoding.")
-    parser.add_argument("--num_beams", type=int, default=1)
+    parser.add_argument("--num_beams", type=int, default=5)
     parser.add_argument("--typical_p", type=float, default=None)
-    parser.add_argument("--batch_size", type=int, default=2)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--entropy_aware_search", action="store_true", help="Use entropy aware search.")
-    parser.add_argument("--ea_upper_limit_coeffs", type=float, nargs='+')
-    parser.add_argument("--ea_lower_limit_coeffs", type=float, nargs='+')
     parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+')
     parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+')
-    parser.add_argument("--ea_version", type=int, default=3)
-    parser.add_argument("--patience_window", type=int, default=5)
-    parser.add_argument("--only_greedy_till", type=int, default=5)
+    parser.add_argument("--ea_version", type=int, default=4)
+    parser.add_argument("--ea_patience_window", type=int, default=5)
     parser.add_argument('--ea_human_entropy_std_band', type=float, default=1.0)
     args = parser.parse_args()
 
@@ -112,57 +96,54 @@ def main():
     set_seed(args)
 
     model_args = ModelArguments(
-        model_name_or_path=args.model_name_or_path,
+        model_name_or_path="facebook/mbart-large-50-many-to-one-mmt"
     )
 
-    prompt_response_dataset = get_writing_prompt_dataset(
-        "/home/mila/a/arorakus/wdir/entropy_aware_search/data/writingPrompts/")
-        # split=['train[:10%]', 'test[:5%]'])
+    wmt19_de_en_dataset = load_dataset("wmt19", "de-en")
+    args.length = adjust_length_to_model(args.length, max_sequence_length=model.config.max_position_embeddings)
 
-    # prompt_response_dataset = filter_out_shorter_prompt(prompt_response_dataset)
 
-    tokenizer = get_tokenizer(model_args)
-    tokenizer.pad_token = tokenizer.eos_token
-
-    model = get_model(model_args)
+    model = AutoModelForSeq2SeqLM.from_pretrained("facebook/mbart-large-50-many-to-one-mmt")
     model = model.to(args.device)
-    prompt_response_testset = prompt_response_dataset['test']
-    
-    def tokenizer_method(examples):
-        tokenized_examples = tokenizer(examples['prompt'], max_length=768, 
-                                        truncation=True, padding=True, 
-                                        return_tensors='pt')
-        return tokenized_examples, examples['response']
+    tokenizer = AutoTokenizer.from_pretrained("facebook/mbart-large-50-many-to-one-mmt")
+    tokenizer.src_lang = "de_DE"
 
-    # compute_metrics = get_compute_metrics_func(experiment_id="tmp_id", tokenizer=tokenizer, metric_names=['accuracy', 'mauve'])
+    max_source_length =  args.length
+
+    def tokenizer_method(examples):
+        srcs = []
+        targets = []
+        for example in examples:
+            srcs.append(example['de'])
+            targets.append(example['en'])
+
+        # remove pairs where at least one record is None
+        model_inputs = tokenizer(srcs, 
+                        max_length=max_source_length,
+                        truncation=True, padding=True, 
+                        return_tensors='pt')
+        return model_inputs, targets
 
     if args.fp16:
         model.half()
 
-    args.length = adjust_length_to_model(args.length, max_sequence_length=model.config.max_position_embeddings)
-    model.config.top_k = None
-
     logger.info(args)
-
-    # DataLoaders creation:
-    # data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=False)
-    # test_dataloader = DataLoader(tokenized_writing_prompt_dataset, collate_fn=data_collator, batch_size=args.batch_size)
+    wmt19_de_en_testset = wmt19_de_en_dataset['test']['translation']
 
     compute_time = 0
     num_generations = 0
     generated_sequences = []
-    with open(args.output_filename, 'w') as output_file:
-        generated_output_sequences = []
-        prompt_sequences = []
-        targets = []
-        for idx, batch_start in enumerate(range(0, len(prompt_response_testset), args.batch_size)):
-            batch, batch_targets = tokenizer_method(prompt_response_testset[batch_start: batch_start+args.batch_size])
+    with open(args.output_filename, 'w') as output_file, \
+        open(f"{args.output_filename}.bleu", 'w') as bleu_file:
+        bleus = []
+        for idx, batch_start in enumerate(range(0, len(wmt19_de_en_testset), args.batch_size)):
+            batch, targets = tokenizer_method(wmt19_de_en_testset[batch_start: batch_start+args.batch_size])            
             batch = batch.to(args.device)
             start_time = timeit.default_timer()
+
             outputs = model.generate(
                 **batch,
-                max_length=args.length,
-                min_length=20,
+                max_length=128,
                 temperature=args.temperature,
                 top_k=args.k,
                 top_p=args.p,
@@ -173,28 +154,28 @@ def main():
                 entropy_aware_search=args.entropy_aware_search,
                 return_dict_in_generate=True,
                 output_scores=True,
-                version=args.version,
-                lower_limit_coeffs=args.ea_lower_limit_coeffs,
-                upper_limit_coeffs=args.ea_upper_limit_coeffs,
-                patience_window=args.patience_window,
-                only_greedy_till=args.only_greedy_till,
-                human_mean_coeffs=args.ea_human_mean_coeffs,
-                human_std_coeffs=args.ea_human_std_coeffs,
-                human_std_band=args.ea_human_entropy_std_band,
+                ea_version=args.ea_version,
+                ea_patience_window=args.ea_patience_window,
+                ea_human_mean_coeffs=args.ea_human_mean_coeffs,
+                ea_human_std_coeffs=args.ea_human_std_coeffs,
+                ea_human_std_band=args.ea_human_entropy_std_band,
             )
             end_time = timeit.default_timer()
             batch_size, batch_len = batch['input_ids'].shape
-
             batch_compute_time = int(end_time - start_time)
             compute_time += batch_compute_time
             num_generations += batch_size
+            
+            generated_abstracts = tokenizer.batch_decode(outputs['sequences'],  skip_special_tokens=True)
+            articles = tokenizer.batch_decode(batch['input_ids'],  skip_special_tokens=True)
 
-            generated_outputs = outputs['sequences'][:, batch_len:]
+            bleu_score_dict = bleu.compute(predictions=generated_abstracts, 
+                                            references=targets)
+            bleus.append(bleu_score_dict['bleu'])
 
             pct_entropy_violations = [-1] * batch_size
             pct_upper_entropy_violations = [-1] * batch_size
             pct_lower_entropy_violations = [-1] * batch_size
-
             entropies = [[]] * batch_size
 
             if args.entropy_aware_search:
@@ -204,33 +185,28 @@ def main():
 
                 entropies = outputs['entropies'].cpu().tolist()
 
-            input_ids = batch['input_ids']
-            generated_output_sequences = tokenizer.batch_decode(generated_outputs, skip_special_tokens=True)
-            prompt_sequences = tokenizer.batch_decode(input_ids, skip_special_tokens=True)
-            targets = batch_targets
-        
-            for generated_sequence_idx, (prompt_sequence, generated_sequence, target, 
-                                            pct_violations, pct_upper_violations, pct_lower_violations, 
-                                            seq_entropy) \
-                    in enumerate(zip(prompt_sequences, generated_output_sequences, targets, 
-                        pct_entropy_violations, pct_upper_entropy_violations, pct_lower_entropy_violations, 
-                        entropies)):
+            for generated_sequence_idx, \
+                (article, generated_abstract, target, 
+                    pct_violations, pct_upper_violations, 
+                    pct_lower_violations, seq_entropy) \
+                    in enumerate(zip(articles, generated_abstracts, targets, 
+                        pct_entropy_violations, pct_upper_entropy_violations, 
+                        pct_lower_entropy_violations, entropies)):
                 print(f"=== GENERATED SEQUENCE {idx}-{generated_sequence_idx + 1} ===", end='\r')
             
-                prompt_sequence = prompt_sequence
-                generated_sequence = truncate(generated_sequence)
-                target = target
+                article = article.strip()
+                generated_abstract = generated_abstract.strip()
 
-                if (idx * args.batch_size + generated_sequence_idx) % 10 == 0:
+                if (idx * args.batch_size + generated_sequence_idx) % 100 == 0:
                     print()
                     print('*' * 100)
-                    print(f"Prompt: {prompt_sequence}")
+                    print(f"Article: \n{article}")
                     print('-' * 100)
-                    print(f"Generation: {generated_sequence}")
+                    print(f"Generated Abstract: \n {generated_abstract}")
                     print('-' * 100)
-                    print(f"Target: {target}")
+                    print(f"Original Abstract: \n {target}")
                     print('*' * 100)
-                    print()
+
                     if args.entropy_aware_search:
                         print(f"\tPercent violations: {pct_violations}")
                         print(f"\tPercent upper violations: {pct_upper_violations}")
@@ -240,8 +216,8 @@ def main():
                     print()
 
                 output = {
-                    'prefix': prompt_sequence, 
-                    'generation': generated_sequence, 
+                    'prefix': article, 
+                    'generation': generated_abstract, 
                     'target': target,
                     'pct_violations': pct_violations,
                     'pct_upper_violations': pct_upper_violations,
@@ -251,6 +227,11 @@ def main():
                 }
 
                 print(json.dumps(output), file=output_file, flush=True)
+        
+        mean_bleu_score = np.mean(bleus)
 
+        print(json.dumps({"bleu": mean_bleu_score}, 
+                            indent=True, sort_keys=True), 
+                file=bleu_file, flush=True)
 if __name__ == "__main__":
     main()

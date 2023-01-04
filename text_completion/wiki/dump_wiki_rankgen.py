@@ -1,4 +1,3 @@
-from torch.utils.data import DataLoader
 
 from utils import get_wiki_dataset
 import json
@@ -11,7 +10,7 @@ with open('/home/mila/a/arorakus/wdir/entropy_aware_search/data/wiki_rankgen/gen
         generated_sequence = datapoint['targets'][0]
 
         output = {
-            'prefix': prompt_sequence,
-            'target': generated_sequence,
+            'context': prompt_sequence,
+            'model_text': generated_sequence,
         }
         print(json.dumps(output), file=orig_file)

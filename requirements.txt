@@ -15,4 +15,7 @@ tensorboard
 rouge_score
 termcolor
 evaluate
+# faiss
 mauve-text
+sentencepiece
+faiss-cpu

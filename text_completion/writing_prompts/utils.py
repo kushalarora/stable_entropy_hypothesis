@@ -24,21 +24,6 @@ def preprocess_logits_for_metrics(logits, labels):
     return logits.argmax(dim=-1)
 
 
-def get_tokenized_prompt_dataset(prompt_response_dataset, tokenizer, generate=False):
-    def preprocess_and_tokenize(examples):
-        if generate:
-            tokenized_examples = tokenizer(examples['prompt'])
-            # tokenized_examples['response'] = examples['response']
-        else:
-            tokenized_examples = tokenizer(examples['prompt'], examples['response'], max_length=1024, truncation=True)
-        return tokenized_examples
-
-    prompt_dataset = prompt_response_dataset.map(
-                        preprocess_and_tokenize, 
-                        batched=True, 
-                        num_proc=10, 
-                        remove_columns=prompt_response_dataset['validation'].column_names)
-    return prompt_dataset
 
 def get_compute_metrics_func(experiment_id, metric_names=['accuracy'], tokenizer=None):
 
@@ -63,7 +48,6 @@ def get_compute_metrics_func(experiment_id, metric_names=['accuracy'], tokenizer
 
     def compute_metrics(eval_preds):
         output = {}
-        import pdb; pdb.set_trace()
         for metric, needs_decoding in metrics:
             preds, labels = eval_preds
             # preds have the same shape as the labels, after the argmax(-1) has been calculated

@@ -9,4 +9,3 @@ do
         sbatch -t 1:00:00 ./launcher_basic.sh python text_completion/score_generations.py --dataset ${filename}
     fi
 done
-

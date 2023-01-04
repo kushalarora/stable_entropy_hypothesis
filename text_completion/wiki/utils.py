@@ -10,6 +10,11 @@ def get_wiki_dataset(data_dir):
                     data_files=os.path.join(data_dir, 'wiki.jsonl'))
     return wiki_dataset['train']
 
+def get_pg19_dataset(data_dir):
+    
+    wiki_dataset = load_dataset("json", 
+                    data_files=os.path.join(data_dir, 'pg19.jsonl'))
+    return wiki_dataset['train']
 
 def preprocess_logits_for_metrics(logits, labels):
     if isinstance(logits, tuple):
