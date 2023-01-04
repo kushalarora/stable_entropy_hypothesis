@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            // "args": ["--model_name_or_path", "gpt2-xl", "--output_filename", "/tmp/debug.txt", "--batch_size",  "4", "--k", "40", "--do_sample"],
+            // "args": ["--model_name_or_path", "/home/mila/a/arorakus/scratch/ews/finetuned_writing_prompts/08-18-2022-05-33-01/checkpoint-55000/", "--output_filename", "/tmp/debug.txt", "--batch_size",  "4", "--k", "40", "--do_sample"],
+            // "args": ["--model_name_or_path", "/home/mila/a/arorakus/scratch/ews/finetuned_writing_prompts/08-18-2022-05-33-01/checkpoint-55000/", "--output_filename", "/tmp/debug.txt", "--entropy_aware_search", "--batch_size",  "4"],
+            // "args": ["--model_name_or_path", "/home/mila/a/arorakus/scratch/ews/finetuned_writing_prompts/08-18-2022-05-33-01/checkpoint-55000/", "--output_filename", "/tmp/debug.txt", "--batch_size",  "4", "--k", "40", "--do_sample"],
+            // "args": ["--model_name_or_path", "/home/mila/a/arorakus/scratch/ews/finetuned_writing_prompts/08-18-2022-05-33-01/checkpoint-55000/", "--output_filename", "/tmp/debug.txt", "--entropy_aware_search", "--num_beams", "5", "--batch_size",  "4"],
+            // "args": ["--model_name_or_path","gpt2-xl", "--output_filename", "/tmp/eags_debug_v4.txt", "--entropy_aware_search", "--batch_size",  "4", "--typical_p", "0.2", "--version", "4", "--batch_size", "4"],
+            // "args": ["--output_filename", "~/scratch/tmp/eags_v4_typical_0.2.jsonl", "--entropy_aware_search", "--batch_size",  "2", "--ea_version", "4", "--k", "30"], 
+            // Config to generate from wiki-rankgen dataset.
+            "args": ["--model_name_or_path","gpt2-xl", "--output_filename", "~/scratch/tmp/eags_v4_typical_0.2.jsonl", "--entropy_aware_search", "--batch_size",  "2", "--ea_version", "4", "--ea_human_mean_coeffs", "-0.00277", "2.88702", "--ea_human_std_coeffs", "-0.00064", "0.91427", "--k", "30"],
+            // "args": ["--output_filename", "~/scratch/tmp/eags_v4_summ_typical_0.2.jsonl", "--entropy_aware_search", "--batch_size",  "2", "--ea_version", "4", "--ea_human_mean_coeffs", "-0.00277", "2.88702", "--ea_human_std_coeffs", "-0.00064", "0.91427", "--k", "30", "--num_beams", "1"],
+            // "args": ["--model_name_or_path", "microsoft/DialoGPT-medium"],
+            //  "args": [ "--model_name_or_path", "facebook/blenderbot-1B-distill", "--entropy_aware_search", "--output_filename", "~/scratch/tmp/bb_90M_ead.jsonl", "--ea_version", "4", "--ea_human_mean_coeffs", "-0.01671", "2.57686", "--ea_human_std_coeffs", "0.00353", "0.61877", "--p", "0.95", "--batch_size", "2"],
+            "env": {"PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "5"}
+        }
+    ]
+}
