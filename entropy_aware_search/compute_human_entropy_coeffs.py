@@ -111,7 +111,7 @@ coeffs = {
 
 output_filename=f"{args.dataset}.deg_{args.degree}.coeffs.json"
 with open(output_filename, 'w') as coeff_file:
-    print(json.dump(coeffs, indent=4), file=coeff_file)
+    json.dump(coeffs, coeff_file, indent=4)
 print(f"Coeffs written to: {output_filename}")
 
 
