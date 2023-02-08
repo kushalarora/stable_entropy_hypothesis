@@ -1,3 +1,47 @@
+
+## Coeffs
+
+### Compute Coeffs Blenderbot-90M:
+```bash
+    # Degree 1
+    python entropy_aware_search/compute_human_entropy_coeffs.py --dataset data/blended_skill_talk/generated/orig.jsonl --max_len 40 --model_name_or_path facebook/blenderbot-90M --is_seq2seq
+    
+    # human_ma_mean_coeffs: (-0.00102, 2.7048)
+    # human_ma_std_coeffs: (0.00735, 0.66831)
+    # human_ma_mean_fit_loss: 0.012
+    # human_ma_std_fit_loss: 0.002
+    
+    # Degree 2:
+    python entropy_aware_search/compute_human_entropy_coeffs.py --dataset data/blended_skill_talk/generated/orig.jsonl --max_len 40 --model_name_or_path facebook/blenderbot-90M --is_seq2seq --degree 2
+    # human_ma_mean_coeffs: (0.00024, -0.01029, 2.76353)
+	# human_ma_std_coeffs: (0.00014, 0.00177, 0.70366)
+    # human_ma_mean_fit_loss: 0.012
+    # human_ma_std_fit_loss: 0.002
+```
+### Compute Coeffs Blenderbot-1B-distill
+```bash
+    # Degree 1
+    python entropy_aware_search/compute_human_entropy_coeffs.py --dataset data/blended_skill_talk/generated/orig.jsonl --max_len 40 --model_name_or_path facebook/blenderbot-1B-distill --is_seq2seq
+    
+    # human_ma_mean_coeffs: (-0.01652, 2.57441)
+    # human_ma_std_coeffs:  (0.00338, 0.61983)
+    # human_ma_mean_fit_loss: 0.022
+    # human_ma_std_fit_loss: 0.001
+    
+    # Degree 2:
+    python entropy_aware_search/compute_human_entropy_coeffs.py --dataset data/blended_skill_talk/generated/orig.jsonl --max_len 40 --model_name_or_path facebook/blenderbot-1B-distill --is_seq2seq --degree 2
+    # human_ma_mean_coeffs: (0.00064, -0.0414, 2.73196)
+	# human_ma_std_coeffs: (-0.00012, 0.0079, 0.59117)
+    # human_ma_mean_fit_loss: 0.016
+    # human_ma_std_fit_loss: 0.000
+```
+
+### Blenderbot-90M
+Degree 1: 
+Degree 2: 
+
+
+```bash
 sbatch -t 2:00:00 ./launcher_basic.sh python dialog/blended_skill_talk/generate_from_bb.py --model_name_or_path facebook/blenderbot-1B-distill --output_filename data/blended_skill_talk/generated/greedy_bb_1b.jsonl --fp16
 
 sbatch -t 2:00:00 ./launcher_basic.sh python dialog/blended_skill_talk/generate_from_bb.py --model_name_or_path facebook/blenderbot-1B-distill --output_filename data/blended_skill_talk/generated/greedy_bb_1b_3_gram_beam_block.jsonl --no_repeat_ngram_size 3 
@@ -17,6 +61,7 @@ sbatch -t 2:00:00 ./launcher_basic.sh python dialog/blended_skill_talk/generate_
 sbatch -t 2:00:00 ./launcher_basic.sh python dialog/blended_skill_talk/generate_from_bb.py --model_name_or_path facebook/blenderbot-1B-distill --entropy_aware_search --output_filename data/blended_skill_talk/generated/ead_top_k_30.jsonl --k 30 --batch_size 1
 
 sbatch -t 2:00:00 ./launcher_basic.sh python dialog/blended_skill_talk/generate_from_bb.py --model_name_or_path facebook/blenderbot-1B-distill --entropy_aware_search --output_filename data/blended_skill_talk/generated/ead_typical_0.9.jsonl --typical_p 0.9 --batch_size 1
+```
 
 ```bash
 for x in ead_top_p_0.95 ead_top_k_30 ead_typical_0.9; do

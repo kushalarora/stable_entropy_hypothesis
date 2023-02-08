@@ -93,15 +93,19 @@ def main():
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--typical_p", type=float, default=None)
     parser.add_argument("--batch_size", type=int, default=2)
-    parser.add_argument("--entropy_aware_search", action="store_true", help="Use entropy aware search.")
+    parser.add_argument("--no_repeat_ngram_size", type=int, default=0)
+    parser.add_argument("--entropy_aware_sampling", action="store_true", help="Use entropy aware search.")
     parser.add_argument("--ea_upper_limit_coeffs", type=float, nargs='+')
     parser.add_argument("--ea_lower_limit_coeffs", type=float, nargs='+')
     parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+')
     parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+')
     parser.add_argument("--ea_version", type=int, default=3)
-    parser.add_argument("--patience_window", type=int, default=5)
-    parser.add_argument("--only_greedy_till", type=int, default=5)
+    parser.add_argument("--ea_patience_window", type=int, default=5)
+    parser.add_argument("--ea_only_greedy_till", type=int, default=5)
     parser.add_argument('--ea_human_entropy_std_band', type=float, default=1.0)
+    parser.add_argument("--ea_donot_intervene_for_lower_bound", action="store_true", help="Use Sampling Decoding.")
+    parser.add_argument("--ea_donot_intervene_for_upper_bound", action="store_true", help="Use Sampling Decoding.")
+
     args = parser.parse_args()
 
     args.device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
@@ -169,19 +173,24 @@ def main():
                 typical_p=args.typical_p,
                 num_beams=args.num_beams,
                 repetition_penalty=args.repetition_penalty,
+                no_repeat_ngram_size=args.no_repeat_ngram_size,
                 do_sample=args.do_sample,
-                entropy_aware_search=args.entropy_aware_search,
+                entropy_aware_sampling=args.entropy_aware_sampling,
                 return_dict_in_generate=True,
                 output_scores=True,
-                version=args.version,
-                lower_limit_coeffs=args.ea_lower_limit_coeffs,
-                upper_limit_coeffs=args.ea_upper_limit_coeffs,
-                patience_window=args.patience_window,
-                only_greedy_till=args.only_greedy_till,
-                human_mean_coeffs=args.ea_human_mean_coeffs,
-                human_std_coeffs=args.ea_human_std_coeffs,
-                human_std_band=args.ea_human_entropy_std_band,
+                ea_version=args.ea_version,
+                ea_lower_limit_coeffs=args.ea_lower_limit_coeffs,
+                ea_upper_limit_coeffs=args.ea_upper_limit_coeffs,
+                ea_patience_window=args.ea_patience_window,
+                ea_only_greedy_till=args.ea_only_greedy_till,
+                entropy_aware_human_mean_coeffs=args.ea_human_mean_coeffs,
+                entropy_aware_human_std_coeffs=args.ea_human_std_coeffs,
+                entropy_aware_human_std_band=args.ea_human_entropy_std_band,
+                pad_token_id=tokenizer.eos_token_id,
+                ea_intervene_for_lower_bound=not args.ea_donot_intervene_for_lower_bound,
+                ea_intervene_for_upper_bound=not args.ea_donot_intervene_for_upper_bound,
             )
+        
             end_time = timeit.default_timer()
             batch_size, batch_len = batch['input_ids'].shape
 
@@ -197,7 +206,10 @@ def main():
 
             entropies = [[]] * batch_size
 
-            if args.entropy_aware_search:
+            entropy_aware_search = args.ea_human_mean_coeffs is not None and \
+                                    args.ea_human_std_coeffs is not None and \
+                                        not args.entropy_aware_sampling
+            if entropy_aware_search:
                 pct_entropy_violations =  outputs['pct_entropy_violations'].cpu().tolist()
                 pct_upper_entropy_violations =  outputs['pct_upper_entropy_violations'].cpu().tolist()
                 pct_lower_entropy_violations =  outputs['pct_lower_entropy_violations'].cpu().tolist()
@@ -217,7 +229,6 @@ def main():
                         entropies)):
                 print(f"=== GENERATED SEQUENCE {idx}-{generated_sequence_idx + 1} ===", end='\r')
             
-                prompt_sequence = prompt_sequence
                 generated_sequence = truncate(generated_sequence)
                 target = target
 
@@ -231,7 +242,7 @@ def main():
                     print(f"Target: {target}")
                     print('*' * 100)
                     print()
-                    if args.entropy_aware_search:
+                    if entropy_aware_search:
                         print(f"\tPercent violations: {pct_violations}")
                         print(f"\tPercent upper violations: {pct_upper_violations}")
                         print(f"\tPercent lower violations: {pct_lower_violations}")

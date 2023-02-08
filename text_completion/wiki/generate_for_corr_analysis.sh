@@ -54,7 +54,7 @@ for run in 1 2 3 4 5; do
         fi
     done
 
-    for tau in 0.25 0.5 0.75 0.9 0.95; 
+    for tau in 0.2 0.25 0.5 0.75 0.9 0.95; 
     do
         filename="data/wiki_rankgen/corr_analysis/gpt2_xl/typical_p_${tau}_run_${run}.jsonl"
         seed=$((1 + RANDOM % 1000))

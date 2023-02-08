@@ -30,7 +30,7 @@ for filepath in filepaths:
         results = json.load(f)
         filtered_results = {}
         for key in keys_to_filter:
-            filtered_results[key] = results[key]
+            filtered_results[key] = results.get(key)
 
         all_filtered_results.append(filtered_results)
 

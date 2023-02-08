@@ -3,6 +3,7 @@
 from torch.utils.data import DataLoader
 
 from entropy_aware_search.hf_utils import DataArguments, ModelArguments, get_tokenizer, get_model
+from tqdm import trange
 from utils import get_wiki_dataset, get_compute_metrics_func
 
 import argparse
@@ -53,7 +54,6 @@ def truncate(text):
     if last_punc != 0:
         text = text[:last_punc + 1]
     return text
-
 def printable_list(list, seperator=',', precision=2):
     return seperator.join([f"{round(x, precision)}" for x in list])
 
@@ -96,16 +96,20 @@ def main():
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--typical_p", type=float, default=None)
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--entropy_aware_search", action="store_true", help="Use entropy aware search.")
+    parser.add_argument("--no_repeat_ngram_size", type=int, default=0)
+    parser.add_argument("--entropy_aware_sampling", action="store_true", help="Use entropy aware search.")
     parser.add_argument("--ea_upper_limit_coeffs", type=float, nargs='+')
     parser.add_argument("--ea_lower_limit_coeffs", type=float, nargs='+')
-    parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+', default=[-0.00277, 2.88702])
-    parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+', default=[-0.00064, 0.91427])
+    parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+',)
+    parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+',)
+    # parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+', default=[-0.00277, 2.88702])
+    # parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+', default=[-0.00064, 0.91427])
     parser.add_argument("--ea_version", type=int, default=3)
     parser.add_argument("--ea_patience_window", type=int, default=5)
-    parser.add_argument("--ea_only_greedy_till", type=int, default=0)
+    parser.add_argument("--ea_only_greedy_till", type=int, default=5)
     parser.add_argument('--ea_human_entropy_std_band', type=float, default=1.0)
-
+    parser.add_argument("--ea_donot_intervene_for_lower_bound", action="store_true", help="Use Sampling Decoding.")
+    parser.add_argument("--ea_donot_intervene_for_upper_bound", action="store_true", help="Use Sampling Decoding.")
 
     args = parser.parse_args()
 
@@ -153,7 +157,7 @@ def main():
         generated_output_sequences = []
         prompt_sequences = []
         targets = []
-        for idx, batch_start in enumerate(range(0, len(wiki_testset), args.batch_size)):
+        for idx, batch_start in enumerate(trange(0, len(wiki_testset), args.batch_size)):
             batch, batch_targets = tokenizer_method(wiki_testset[batch_start: batch_start+args.batch_size])
             batch = batch.to(args.device)
             start_time = timeit.default_timer()
@@ -168,7 +172,8 @@ def main():
                 num_beams=args.num_beams,
                 repetition_penalty=args.repetition_penalty,
                 do_sample=args.do_sample,
-                entropy_aware_search=args.entropy_aware_search,
+                no_repeat_ngram_size=args.no_repeat_ngram_size,
+                entropy_aware_sampling=args.entropy_aware_sampling,
                 return_dict_in_generate=True,
                 output_scores=True,
                 ea_version=args.ea_version,
@@ -176,10 +181,14 @@ def main():
                 ea_upper_limit_coeffs=args.ea_upper_limit_coeffs,
                 ea_patience_window=args.ea_patience_window,
                 ea_only_greedy_till=args.ea_only_greedy_till,
-                ea_human_mean_coeffs=args.ea_human_mean_coeffs,
-                ea_human_std_coeffs=args.ea_human_std_coeffs,
-                ea_human_std_band=args.ea_human_entropy_std_band,
+                entropy_aware_human_mean_coeffs=args.ea_human_mean_coeffs,
+                entropy_aware_human_std_coeffs=args.ea_human_std_coeffs,
+                entropy_aware_human_std_band=args.ea_human_entropy_std_band,
+                pad_token_id=tokenizer.eos_token_id,
+                ea_intervene_for_lower_bound=not args.ea_donot_intervene_for_lower_bound,
+                ea_intervene_for_upper_bound=not args.ea_donot_intervene_for_upper_bound,
             )
+
             end_time = timeit.default_timer()
             batch_size, batch_len = batch['input_ids'].shape
 
@@ -192,14 +201,18 @@ def main():
             pct_entropy_violations = [-1] * batch_size
             pct_upper_entropy_violations = [-1] * batch_size
             pct_lower_entropy_violations = [-1] * batch_size
-
+            num_backoffs = 0
             entropies = [[]] * batch_size
 
-            if args.entropy_aware_search:
+            entropy_aware_search = args.ea_human_mean_coeffs is not None and \
+                                    args.ea_human_std_coeffs is not None and \
+                                        not args.entropy_aware_sampling
+            if entropy_aware_search:
                 pct_entropy_violations =  outputs['pct_entropy_violations'].cpu().tolist()
                 pct_upper_entropy_violations =  outputs['pct_upper_entropy_violations'].cpu().tolist()
                 pct_lower_entropy_violations =  outputs['pct_lower_entropy_violations'].cpu().tolist()
-
+                backoff_indexes = outputs['backoff_indexes']
+                num_backoffs =  len(backoff_indexes)
                 entropies = outputs['entropies'].cpu().tolist()
 
             input_ids = batch['input_ids']
@@ -213,7 +226,7 @@ def main():
                     in enumerate(zip(prompt_sequences, generated_output_sequences, targets, 
                         pct_entropy_violations, pct_upper_entropy_violations, pct_lower_entropy_violations, 
                         entropies)):
-                print(f"=== GENERATED SEQUENCE {idx}-{generated_sequence_idx + 1} ===", end='\r')
+                # print(f"=== GENERATED SEQUENCE {idx}-{generated_sequence_idx + 1} ===", end='\r')
             
                 generated_sequence = truncate(generated_sequence)
                 target = target
@@ -228,10 +241,12 @@ def main():
                     print(f"Target: {target}")
                     print('*' * 100)
                     print()
-                    if args.entropy_aware_search:
+                    if entropy_aware_search:
                         print(f"\tPercent violations: {pct_violations}")
                         print(f"\tPercent upper violations: {pct_upper_violations}")
                         print(f"\tPercent lower violations: {pct_lower_violations}")
+                        print(f"\tBackoff Indexes: {backoff_indexes}")
+                        print(f"\tNum Backoff: {num_backoffs}")
                         print(f"\tCompute Time: {batch_compute_time/batch_size} secs")
                         # print(f"\tEntropies: {printable_list(seq_entropy, ' ', precision=1)}")
                     print('*' * 100)
@@ -245,6 +260,7 @@ def main():
                     'pct_upper_violations': pct_upper_violations,
                     'pct_lower_violations': pct_lower_violations,
                     'seq_mean_entropies': seq_entropy,
+                    'num_backoffs': num_backoffs,
                     'compute_time': batch_compute_time/batch_size,
                 }
 

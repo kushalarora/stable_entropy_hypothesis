@@ -32,6 +32,20 @@ def pretty_print_outputs(outputs):
             ((key, outputs[key]) for key in keys)
     ))
 
+def truncate(text):
+    last_punc = 0
+    if "." in text:
+        last_punc = max(last_punc, text.rindex("."))
+    if "?" in text:
+        last_punc = max(last_punc, text.rindex("?"))
+    if "!" in text:
+        last_punc = max(last_punc, text.rindex("!"))
+    if ";" in text:
+        last_punc = max(last_punc, text.rindex(";"))
+    if last_punc != 0:
+        text = text[:last_punc + 1]
+    return text
+    
 def f1_score(prediction, ground_truth, gram=1, stopwords=None):
     """Calculate word level F1 score."""
     prediction = normalize_answer(prediction)
