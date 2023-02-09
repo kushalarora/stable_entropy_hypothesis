@@ -24,3 +24,8 @@ source ${HOME}/envs/ead/bin/activate
 
 pip install -r requirements.txt
 ```
+
+## Stable Entropy Analysis:
+The stable entropy analysis is presented in ipython notebook [here](stable_entropy_analysis/stable_entropy_analysis.ipynb): 
+
+```stable_entropy_analysis/stable_entropy_analysis.ipynb```
