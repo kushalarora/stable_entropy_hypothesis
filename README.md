@@ -1,4 +1,4 @@
-# The Stable Entropy Hypothesis and Entropy-Aware Decoding: An Analysis and Algorithm for Robust Natural Language Generation
+# The Stable Entropy Hypothesis and Entropy-Aware Decoding
 ## Installation
 
 python -m venv ${HOME}/envs/ews
