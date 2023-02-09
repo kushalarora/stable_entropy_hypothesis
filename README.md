@@ -29,3 +29,13 @@ pip install -r requirements.txt
 The stable entropy analysis is presented in ipython notebook [here](stable_entropy_analysis/stable_entropy_analysis.ipynb): 
 
 ```stable_entropy_analysis/stable_entropy_analysis.ipynb```
+
+To generate data for correlation analysis, run:
+```bash
+./text_completion/wiki/generate_for_corr_analysis.sh
+```
+
+To compile the results in csv file, run:
+```bash
+./text_completion/compile_corr_analysis.py --directory data/wiki_rankgen/corr_analysis/gpt2_xl/
+```
