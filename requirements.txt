@@ -1,7 +1,21 @@
 transformers
+datasets
+evaluate
 torch
-gspread
-gspread_pandas
-seaborn
 pandas
+seaborn
+parlai
+ipython
+accelerate
+ipywidgets
+jupyter
+tqdm
+widgetsnbextension
+tensorboard
+rouge_score
 termcolor
+evaluate
+# faiss
+mauve-text
+sentencepiece
+faiss-cpu
