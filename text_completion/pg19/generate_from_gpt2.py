@@ -2,8 +2,8 @@
 
 from torch.utils.data import DataLoader
 
-from entropy_aware_search.hf_utils import DataArguments, ModelArguments, get_tokenizer, get_model
-from utils import get_pg19_dataset, get_compute_metrics_func
+from transformers import  AutoModelForCausalLM, AutoTokenizer
+from utils import get_pg19_dataset
 
 import argparse
 import logging
@@ -11,8 +11,6 @@ import logging
 import numpy as np
 import torch
 import json
-import os
-import datetime
 import timeit
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -114,26 +112,20 @@ def main():
 
     set_seed(args)
 
-    model_args = ModelArguments(
-        model_name_or_path=args.model_name_or_path,
-    )
-
     wiki_testset = get_pg19_dataset(
         "/home/mila/a/arorakus/wdir/entropy_aware_search/data/rankgen_data/")
-        # split=['train[:10%]', 'test[:5%]'])
 
-
-    tokenizer = get_tokenizer(model_args)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
     tokenizer.pad_token = tokenizer.eos_token
 
-    model = get_model(model_args)
+    model = AutoModelForCausalLM.from_pretrained(
+                                args.model_name_or_path,)
     model = model.to(args.device)
     
     def tokenizer_method(examples):
         tokenized_examples = tokenizer(examples['prefix'], max_length=1024-128-3, truncation=True, padding=True, return_tensors='pt')
         return tokenized_examples, [x[0] for x in examples['targets']]
 
-    # compute_metrics = get_compute_metrics_func(experiment_id="tmp_id", tokenizer=tokenizer, metric_names=['accuracy', 'mauve'])
 
     if args.fp16:
         model.half()

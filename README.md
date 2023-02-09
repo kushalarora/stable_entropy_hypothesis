@@ -31,13 +31,13 @@ sbatch -t 1-00:00:00 --gres=gpu:3g.39gb:1 ./launcher_basic.sh python text_comple
 
 ### Generate from Fine-tuned GPT2 model
 ```bash
-sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/writing_prompts/generate_from_gpt2.py --model_name_or_path /home/mila/a/arorakus/scratch/ews/finetuned_writing_prompts/08-18-2022-05-33-01/checkpoint-55000/ --output_filename data/writingPrompts/generated/finetuned/v2/greedy.csv
+sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/writing_prompts/generate_from_gpt2.py --model_name_or_path /home/mila/a/arorakus/scratch/ews/finetuned_writing_prompts/12-13-2022-15-18-02/checkpoint-35000/ --output_filename data/writingPrompts/generated/finetuned/v2/greedy.csv
 
 sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/writing_prompts/generate_from_gpt2.py --model_name_or_path /home/mila/a/arorakus/scratch/ews/finetuned_writing_prompts/08-18-2022-05-33-01/checkpoint-55000/ --output_filename data/writingPrompts/generated/finetuned/v2/top_p_0.9.csv  --p 0.9 --do_sample
 
 sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/writing_prompts/generate_from_gpt2.py --model_name_or_path /home/mila/a/arorakus/scratch/ews/finetuned_writing_prompts/08-18-2022-05-33-01/checkpoint-55000/ --output_filename data/writingPrompts/generated/finetuned/v2/top_p_0.95.csv  --p 0.95 --do_sample
 
-sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/writing_prompts/generate_from_gpt2.py --model_name_or_path /home/mila/a/arorakus/scratch/ews/finetuned_writing_prompts/08-18-2022-05-33-01/checkpoint-55000/ --output_filename data/writingPrompts/generated/finetuned/v2/top_k_30.csv  --k 30 --do_sample
+sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/writing_prompts/generate_from_gpt2.py --model_name_or_path /home/mila/a/arorakus/scratch/ews/finetuned_writing_prompts/12-13-2022-15-18-02/checkpoint-35000/  --output_filename data/writingPrompts/generated/finetuned/v2/top_k_30.csv  --k 30 --do_sample
 
 sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/writing_prompts/generate_from_gpt2.py --model_name_or_path /home/mila/a/arorakus/scratch/ews/finetuned_writing_prompts/08-18-2022-05-33-01/checkpoint-55000/ --output_filename data/writingPrompts/generated/finetuned/v2/top_k_40.csv  --k 40 --do_sample
 

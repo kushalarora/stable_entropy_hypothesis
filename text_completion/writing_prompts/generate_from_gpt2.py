@@ -1,7 +1,8 @@
 
 
 
-from entropy_aware_search.hf_utils import ModelArguments, get_tokenizer, get_model
+from transformers import  AutoModelForCausalLM, AutoTokenizer
+
 from utils import get_writing_prompt_dataset
 import argparse
 import logging
@@ -9,8 +10,6 @@ import logging
 import numpy as np
 import torch
 import json
-import os
-import datetime
 import timeit
 
 logging.basicConfig(
@@ -115,21 +114,19 @@ def main():
 
     set_seed(args)
 
-    model_args = ModelArguments(
-        model_name_or_path=args.model_name_or_path,
-    )
-
     prompt_response_dataset = get_writing_prompt_dataset(
         "/home/mila/a/arorakus/wdir/entropy_aware_search/data/writingPrompts/")
         # split=['train[:10%]', 'test[:5%]'])
 
     # prompt_response_dataset = filter_out_shorter_prompt(prompt_response_dataset)
 
-    tokenizer = get_tokenizer(model_args)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
     tokenizer.pad_token = tokenizer.eos_token
 
-    model = get_model(model_args)
+    model = AutoModelForCausalLM.from_pretrained(
+                                args.model_name_or_path,)
     model = model.to(args.device)
+
     prompt_response_testset = prompt_response_dataset['test']
     
     def tokenizer_method(examples):

@@ -1,11 +1,9 @@
 
-
 import json
 import time
 import timeit
 from torch.utils.data import DataLoader
 
-from entropy_aware_search.hf_utils import ModelArguments, get_tokenizer, get_model
 
 import argparse
 import logging
@@ -94,10 +92,6 @@ def main():
     logger.warning(f"device: {args.device}, n_gpu: {args.n_gpu}, 16-bits training: {args.fp16}")
 
     set_seed(args)
-
-    model_args = ModelArguments(
-        model_name_or_path="facebook/mbart-large-50-many-to-one-mmt"
-    )
 
     wmt19_de_en_dataset = load_dataset("wmt19", "de-en")
     args.length = adjust_length_to_model(args.length, max_sequence_length=model.config.max_position_embeddings)

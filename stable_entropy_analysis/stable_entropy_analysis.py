@@ -6,17 +6,12 @@
 
 import sys
 
-from entropy_aware_search.hf_utils import DataArguments, ModelArguments, get_tokenizer, get_model
-from entropy_aware_search.utils import compute_average_across_sequences, process_datapoint
-from torch.utils.data import DataLoader
-from transformers import DataCollatorForLanguageModeling
-from parlai.utils.strings import colorize
+from utils import compute_average_across_sequences, process_datapoint
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-import copy
 pd.options.plotting.backend = "matplotlib"
 
 

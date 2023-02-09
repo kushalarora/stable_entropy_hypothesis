@@ -2,7 +2,7 @@
 
 from torch.utils.data import DataLoader
 
-from entropy_aware_search.hf_utils import DataArguments, ModelArguments, get_tokenizer, get_model
+from transformers import  AutoModelForCausalLM, AutoTokenizer
 from tqdm import trange
 from datasets import load_dataset
 
@@ -121,25 +121,23 @@ def main():
 
     set_seed(args)
 
-    model_args = ModelArguments(
-        model_name_or_path=args.model_name_or_path,
-    )
+
     
     wiki_dataset = load_dataset("json", 
                     data_files=f"data/factuality/fever_{args.type}_final.jsonl")
     wiki_testset = wiki_dataset['train']
 
-    tokenizer = get_tokenizer(model_args)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
     tokenizer.pad_token = tokenizer.eos_token
 
-    model = get_model(model_args)
+    model = AutoModelForCausalLM.from_pretrained(
+                                args.model_name_or_path,)
     model = model.to(args.device)
     
     def tokenizer_method(examples):
         tokenized_examples = tokenizer(examples['prompt'], max_length=1024-128-3, truncation=True, padding=True, return_tensors='pt')
         return tokenized_examples
 
-    # compute_metrics = get_compute_metrics_func(experiment_id="tmp_id", tokenizer=tokenizer, metric_names=['accuracy', 'mauve'])
 
     if args.fp16:
         model.half()

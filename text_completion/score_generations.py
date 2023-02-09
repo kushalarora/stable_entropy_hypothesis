@@ -19,7 +19,7 @@ import pandas as pd
 # nlp = spacy.load("en_core_web_md")
 import hashlib
 
-from entropy_aware_search.utils import compute_entropy_voilations, compute_ngram_repeats
+from utils import compute_entropy_voilations, compute_ngram_repeats
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 keys = ['dataset', 'f1_score', 

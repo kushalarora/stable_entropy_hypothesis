@@ -1,10 +1,9 @@
 
 
-from torch.utils.data import DataLoader
+from transformers import  AutoModelForCausalLM, AutoTokenizer
 
-from entropy_aware_search.hf_utils import DataArguments, ModelArguments, get_tokenizer, get_model
 from tqdm import trange
-from utils import get_wiki_dataset, get_compute_metrics_func
+from utils import get_wiki_dataset
 
 import argparse
 import logging
@@ -12,8 +11,6 @@ import logging
 import numpy as np
 import torch
 import json
-import os
-import datetime
 import timeit
 
 logging.basicConfig(
@@ -120,19 +117,16 @@ def main():
 
     set_seed(args)
 
-    model_args = ModelArguments(
-        model_name_or_path=args.model_name_or_path,
-    )
-
     wiki_testset = get_wiki_dataset(
         "/home/mila/a/arorakus/wdir/entropy_aware_search/data/rankgen_data/")
         # split=['train[:10%]', 'test[:5%]'])
 
 
-    tokenizer = get_tokenizer(model_args)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
     tokenizer.pad_token = tokenizer.eos_token
 
-    model = get_model(model_args)
+    model = AutoModelForCausalLM.from_pretrained(
+                                args.model_name_or_path,)
     model = model.to(args.device)
     
     def tokenizer_method(examples):

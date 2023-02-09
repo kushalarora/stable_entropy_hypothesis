@@ -1,11 +1,7 @@
 
 
 import json
-import os
 import timeit
-from torch.utils.data import DataLoader
-
-from entropy_aware_search.hf_utils import ModelArguments, get_tokenizer, get_model
 
 import argparse
 import logging
@@ -13,13 +9,10 @@ import logging
 import numpy as np
 import torch
 
-from transformers import (
-    DataCollatorForSeq2Seq,
-)
 
 from datasets import load_dataset
 
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer,AutoModelForCausalLM
+from transformers import AutoTokenizer,AutoModelForCausalLM
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",

@@ -1,11 +1,7 @@
 
 
 import json
-import time
 import timeit
-from torch.utils.data import DataLoader
-
-from entropy_aware_search.hf_utils import ModelArguments, get_tokenizer, get_model
 
 import argparse
 import logging
@@ -94,10 +90,6 @@ def main():
     logger.warning(f"device: {args.device}, n_gpu: {args.n_gpu}, 16-bits training: {args.fp16}")
 
     set_seed(args)
-
-    model_args = ModelArguments(
-        model_name_or_path="facebook/bart-large-cnn"
-    )
 
     cnn_dm_dataset = load_dataset("cnn_dailymail", "3.0.0")
 

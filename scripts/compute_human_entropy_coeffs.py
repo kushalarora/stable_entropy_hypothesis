@@ -1,4 +1,4 @@
-from entropy_aware_search.utils import compute_average_across_sequences
+from utils import compute_average_across_sequences
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM,AutoModelForCausalLM
 
 import argparse

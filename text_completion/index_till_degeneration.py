@@ -1,7 +1,7 @@
 import argparse
 import json
 import numpy as np
-from entropy_aware_search.utils import  compute_ngram_repeats
+from utils import  compute_ngram_repeats
 import pandas as pd
 
 parser = argparse.ArgumentParser()

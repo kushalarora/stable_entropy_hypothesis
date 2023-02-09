@@ -8,22 +8,18 @@ from transformers import (
     Trainer,
     TrainingArguments,
     DataCollatorForLanguageModeling,
-    AutoTokenizer
+    AutoTokenizer,
+    AutoModelForCausalLM
 )
 
 from datetime import datetime
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),os.pardir))
-from entropy_aware_search.hf_utils import ModelArguments, get_model
 from utils import get_writing_prompt_dataset, preprocess_logits_for_metrics, get_compute_metrics_func
 
 learning_rate = float(os.environ.get("LR", 1e-4))
 if __name__ == '__main__':
     per_device_batch_size = 4
-
-    model_args = ModelArguments(
-        model_name_or_path="gpt2-large",
-    )
 
     output_dir_suffix = datetime.now().strftime("%m-%d-%Y-%H-%M-%S")
     trainer_args = TrainingArguments(
@@ -52,7 +48,8 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained("gpt2-large", **tokenizer_kwargs)
     tokenizer.pad_token = tokenizer.eos_token
 
-    model = get_model(model_args)
+    model = AutoModelForCausalLM.from_pretrained("gpt2-large")
+    model = model.to(0)
 
     def tokenize(examples):
         tokenized_examples = tokenizer(examples['prompt'], examples['response'], 
@@ -73,7 +70,6 @@ if __name__ == '__main__':
 
     compute_metrics = get_compute_metrics_func(metric_names=['accuracy'], experiment_id=output_dir_suffix)
     
-    # import pdb; pdb.set_trace()
     # Initialize our Trainer
     trainer = Trainer(
         args=trainer_args,
@@ -86,7 +82,6 @@ if __name__ == '__main__':
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
 
-    # metrics = trainer.evaluate()
 
     train_result = trainer.train()
     trainer.save_model()  # Saves the tokenizer too for easy upload
