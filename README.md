@@ -1,7 +1,7 @@
 # The Stable Entropy Hypothesis and Entropy-Aware Decoding
 This repository is the official implementation of [The Stable Entropy Hypothesis and Entropy Aware Decoding](https://arxiv.org/abs/<tobefilled>). 
 
-![The Stable Entropy Zone Annotated](images/stable_entropy_hypothesis_annotated_v2.png)
+<img src="images/stable_entropy_hypothesis_annotated_v2.png" align="middle" width=50% height=50%>
 
 ## Requirements
 To install requirements:
