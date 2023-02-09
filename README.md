@@ -13,7 +13,11 @@ We define the **stable entropy baseline** as the smoothed mean entropy of the co
 Next, we define an area around the** stable entropy baseline** spanned by its standard deviation as the **stable entropy zone**. We hypothesize that the stable entropy zone is narrow and flat across tasks, models and domains. 
 
 ### The Stable Entropy Hypothesis:
-We posit that any decoding algorithm that results in entropy of the model being "contained" with-in the stable entropy zone would result in more natural-sounding human-like generations.
+We posit that any decoding algorithm that results in entropy of the model being "contained" with-in the stable entropy zone would result in more natural-sounding human-like generations. We use this hypothesis to analyze why deterministic decoding methods degenerate for open-ended generation and stochastic decoding methods do well. 
+
+### Entropy-Aware Decoding:
+We propose an entropy-aware decoding method that tries to keep the entropy of the model within the stable entropy zone while acting greedily most of the time. The details of the algorithm are available in the paper. The implementation is available [here](https://github.com/kushalarora/transformers/blob/main/src/transformers/generation_utils.py#L1894). 
+
 
 ## Requirements
 To install requirements:
