@@ -18,6 +18,7 @@ We posit that any decoding algorithm that results in entropy of the model being 
 ### Entropy-Aware Decoding:
 We propose an entropy-aware decoding method that tries to keep the entropy of the model within the stable entropy zone while acting greedily most of the time. The details of the algorithm are available in the paper. The implementation is available [here](https://github.com/kushalarora/transformers/blob/main/src/transformers/generation_utils.py#L1894). 
 
+We pass the stable entropy baseline and stable entropy zone to the algorithm by modeling them using a n-degree polynomial (n=2) and passing it to the algorithm.
 
 ## Requirements
 To install requirements:
@@ -42,4 +43,26 @@ To generate data for correlation analysis, run:
 To compile the results in csv file, run:
 ```bash
 ./text_completion/compile_corr_analysis.py --directory data/wiki_rankgen/corr_analysis/gpt2_xl/
+```
+
+## Entropy-Aware Decoding Experiments:
+
+Computing Coeffs for the stable entropy baseline (human_mean_coeffs) and the stable entropy zone (human_std_coeffs):
+```bash
+  # For text completion experiments:
+  python entropy_aware_search/compute_human_entropy_coeffs.py --dataset data/wiki_rankgen/generated/orig.jsonl --model_name_or_path gpt2-xl --degree 2
+  
+  # For dialog experiments:
+  python entropy_aware_search/compute_human_entropy_coeffs.py --dataset data/blended_skill_talk/generated/orig.jsonl --max_len 40 --model_name_or_path facebook/blenderbot-90M --is_seq2seq --degree 2
+```
+
+For generating using EAD, run:
+```bash
+# For text completion experiments:
+./stable_entropy_hypothesis/text_completion/wiki/gpt2_v4_final_command.sh
+
+
+# For dialog experiments:
+./dialog/blended_skill_talk/generate_from_bb_ead_90M_final.sh
+
 ```
