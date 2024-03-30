@@ -7,8 +7,8 @@ from datasets import load_dataset
 def get_wiki_dataset(data_dir):
     
     wiki_dataset = load_dataset("json", 
-                    data_files=os.path.join(data_dir, 'wiki.jsonl'))
-    return wiki_dataset['train']
+                    data_files=os.path.join(data_dir, 'wiki/orig.jsonl'))
+    return [x for x in wiki_dataset['train']]
 
 def get_pg19_dataset(data_dir):
     

@@ -4,15 +4,8 @@ import evaluate
 import os
 from datasets import load_dataset
 
-def get_writing_prompt_dataset(data_dir):
-    data_files = {
-        'train': os.path.join(data_dir, 'train.json'),
-        'validation': os.path.join(data_dir, 'valid.json'),
-        'test': os.path.join(data_dir, 'test.json')
-    }
-    prompt_response_dataset = load_dataset("json", 
-                                            data_files=data_files)
-    return prompt_response_dataset
+def get_writing_prompt_dataset():
+    return load_dataset("euclaise/WritingPrompts_curated")
 
 
 

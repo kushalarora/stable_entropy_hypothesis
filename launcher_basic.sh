@@ -19,6 +19,6 @@ module load libffi
 export NUM_GPUS=${NUM_GPUS:=2}
 export TOKENIZERS_PARALLELISM=true
 export PYTHONPATH=.:${PYTHONPATH}
-source  ${HOME}/scratch/envs/ews2/bin/activate
+source  ${HOME}/scratch/envs/seh/bin/activate
 $@
 

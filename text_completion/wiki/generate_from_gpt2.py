@@ -1,19 +1,22 @@
 
 
 from torch.utils.data import DataLoader
+from transformers import  AutoModelForCausalLM, AutoTokenizer
 
-from entropy_aware_search.hf_utils import DataArguments, ModelArguments, get_tokenizer, get_model
+from accelerate import PartialState, Accelerator
+from accelerate.utils import set_seed, gather_object
+
+# from entropy_aware_search.hf_utils import DataArguments, ModelArguments, get_tokenizer, get_model
 from tqdm import trange
 from utils import get_wiki_dataset, get_compute_metrics_func
 
 import argparse
 import logging
 
+import os
 import numpy as np
 import torch
 import json
-import os
-import datetime
 import timeit
 
 logging.basicConfig(
@@ -54,6 +57,7 @@ def truncate(text):
     if last_punc != 0:
         text = text[:last_punc + 1]
     return text
+
 def printable_list(list, seperator=',', precision=2):
     return seperator.join([f"{round(x, precision)}" for x in list])
 
@@ -69,13 +73,13 @@ def main():
     )
 
     parser.add_argument("--output_filename", type=str, default="The output file to save the generation.")
-    parser.add_argument("--length", type=int, default=1024)
+    parser.add_argument("--length", type=int, default=512)
     parser.add_argument("--stop_token", type=str, default="<|endoftext|>", help="Token at which text generation is stopped")
 
     parser.add_argument(
         "--temperature",
         type=float,
-        default=1.0,
+        default=None,
         help="temperature of 1.0 has no effect, lower tend toward greedy sampling",
     )
     parser.add_argument(
@@ -88,14 +92,14 @@ def main():
     parser.add_argument("--no_cuda", action="store_true", help="Avoid using CUDA when available")
     parser.add_argument("--num_return_sequences", type=int, default=1, help="The number of samples to generate.")
     parser.add_argument(
-        "--fp16",
+        "--bf16",
         action="store_true",
         help="Whether to use 16-bit (mixed) precision (through NVIDIA apex) instead of 32-bit",
     )
     parser.add_argument("--do_sample", action="store_true", help="Use Sampling Decoding.")
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--typical_p", type=float, default=None)
-    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--no_repeat_ngram_size", type=int, default=0)
     parser.add_argument("--entropy_aware_sampling", action="store_true", help="Use entropy aware search.")
     parser.add_argument("--ea_upper_limit_coeffs", type=float, nargs='+')
@@ -110,39 +114,54 @@ def main():
     parser.add_argument('--ea_human_entropy_std_band', type=float, default=1.0)
     parser.add_argument("--ea_donot_intervene_for_lower_bound", action="store_true", help="Use Sampling Decoding.")
     parser.add_argument("--ea_donot_intervene_for_upper_bound", action="store_true", help="Use Sampling Decoding.")
+    parser.add_argument("--load_in_8bit", action="store_true", help="Load in 8 bit.")
+    parser.add_argument("--num_examples", type=int, default=-1)
 
     args = parser.parse_args()
 
-    args.device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
     args.n_gpu = 0 if args.no_cuda else torch.cuda.device_count()
 
-    logger.warning(f"device: {args.device}, n_gpu: {args.n_gpu}, 16-bits training: {args.fp16}")
-
+    distributed_state = PartialState(cpu=args.no_cuda)
     set_seed(args)
 
-    model_args = ModelArguments(
-        model_name_or_path=args.model_name_or_path,
-    )
-
     wiki_testset = get_wiki_dataset(
-        "/home/mila/a/arorakus/wdir/entropy_aware_search/data/rankgen_data/")
+        os.path.expanduser("~/wdir/stable_entropy_hypothesis/data/text_completion/"))
         # split=['train[:10%]', 'test[:5%]'])
-
-
-    tokenizer = get_tokenizer(model_args)
-    tokenizer.pad_token = tokenizer.eos_token
-
-    model = get_model(model_args)
-    model = model.to(args.device)
     
+    wiki_testset = wiki_testset[:args.num_examples]
+    args.bf16 = True
+    torch_dtype = None
+    if args.bf16:
+        torch_dtype = torch.bfloat16
+
+    if args.temperature is not None and args.temperature > 0:
+        args.do_sample = True
+
     def tokenizer_method(examples):
-        tokenized_examples = tokenizer(examples['prefix'], max_length=1024-128-3, truncation=True, padding=True, return_tensors='pt')
-        return tokenized_examples, [x[0] for x in examples['targets']]
+        prefixes = []
+        targets = []
+        for example in examples:
+            prefixes.append(example['context'])
+            targets.append(example['model_text'])
 
-    # compute_metrics = get_compute_metrics_func(experiment_id="tmp_id", tokenizer=tokenizer, metric_names=['accuracy', 'mauve'])
+        tokenized_examples = tokenizer(prefixes, max_length=512, truncation=True, padding=True, return_tensors='pt')
+        return tokenized_examples, prefixes, targets
 
-    if args.fp16:
-        model.half()
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = 'left'
+
+    model = AutoModelForCausalLM.from_pretrained(
+                                args.model_name_or_path,
+                                trust_remote_code=True,
+                                use_auth_token=True,
+                                torch_dtype=torch_dtype,
+                                low_cpu_mem_usage=True,
+                                load_in_8bit=args.load_in_8bit,
+                                attn_implementation="flash_attention_2",
+                                device_map={"": distributed_state.device}
+                                )
+
 
     args.length = adjust_length_to_model(args.length, max_sequence_length=model.config.max_position_embeddings)
     model.config.top_k = None
@@ -152,18 +171,21 @@ def main():
 
     compute_time = 0
     num_generations = 0
+    output_jsons = []
     with open(args.output_filename, 'w') as output_file, \
-        open(f"{args.output_filename}.metadata", 'w') as metadata_file:
+        open(f"{args.output_filename}.metadata", 'w') as metadata_file, \
+        distributed_state.split_between_processes(wiki_testset) as dataset_split:
         generated_output_sequences = []
         prompt_sequences = []
         targets = []
-        for idx, batch_start in enumerate(trange(0, len(wiki_testset), args.batch_size)):
-            batch, batch_targets = tokenizer_method(wiki_testset[batch_start: batch_start+args.batch_size])
-            batch = batch.to(args.device)
+        print(f"{distributed_state.device} => {len(dataset_split)}")
+        for idx, batch_start in enumerate(trange(0, len(dataset_split), args.batch_size)):
+            batch, prefixes, batch_targets = tokenizer_method(dataset_split[batch_start: batch_start+args.batch_size])
+            batch = batch.to(distributed_state.device)
             start_time = timeit.default_timer()
             outputs = model.generate(
                 **batch,
-                max_new_tokens=128,
+                max_new_tokens=args.length,
                 min_length=20,
                 temperature=args.temperature,
                 top_k=args.k,
@@ -173,20 +195,20 @@ def main():
                 repetition_penalty=args.repetition_penalty,
                 do_sample=args.do_sample,
                 no_repeat_ngram_size=args.no_repeat_ngram_size,
-                entropy_aware_sampling=args.entropy_aware_sampling,
+                # entropy_aware_sampling=args.entropy_aware_sampling,
                 return_dict_in_generate=True,
                 output_scores=True,
-                ea_version=args.ea_version,
-                ea_lower_limit_coeffs=args.ea_lower_limit_coeffs,
-                ea_upper_limit_coeffs=args.ea_upper_limit_coeffs,
-                ea_patience_window=args.ea_patience_window,
-                ea_only_greedy_till=args.ea_only_greedy_till,
-                entropy_aware_human_mean_coeffs=args.ea_human_mean_coeffs,
-                entropy_aware_human_std_coeffs=args.ea_human_std_coeffs,
-                entropy_aware_human_std_band=args.ea_human_entropy_std_band,
-                pad_token_id=tokenizer.eos_token_id,
-                ea_intervene_for_lower_bound=not args.ea_donot_intervene_for_lower_bound,
-                ea_intervene_for_upper_bound=not args.ea_donot_intervene_for_upper_bound,
+                # ea_version=args.ea_version,
+                # ea_lower_limit_coeffs=args.ea_lower_limit_coeffs,
+                # ea_upper_limit_coeffs=args.ea_upper_limit_coeffs,
+                # ea_patience_window=args.ea_patience_window,
+                # ea_only_greedy_till=args.ea_only_greedy_till,
+                # entropy_aware_human_mean_coeffs=args.ea_human_mean_coeffs,
+                # entropy_aware_human_std_coeffs=args.ea_human_std_coeffs,
+                # entropy_aware_human_std_band=args.ea_human_entropy_std_band,
+                # pad_token_id=tokenizer.eos_token_id,
+                # ea_intervene_for_lower_bound=not args.ea_donot_intervene_for_lower_bound,
+                # ea_intervene_for_upper_bound=not args.ea_donot_intervene_for_upper_bound,
             )
 
             end_time = timeit.default_timer()
@@ -234,6 +256,7 @@ def main():
                 if (idx * args.batch_size + generated_sequence_idx) % 10 == 0:
                     print()
                     print('*' * 100)
+                    print(f"{distributed_state.device}")
                     print(f"Prompt: {prompt_sequence}")
                     print('-' * 100)
                     print(f"Generation: {generated_sequence}")
@@ -263,8 +286,11 @@ def main():
                     'num_backoffs': num_backoffs,
                     'compute_time': batch_compute_time/batch_size,
                 }
+                output_jsons.append(output)
+        all_output_jsons = gather_object(output_jsons)
 
-                print(json.dumps(output), file=output_file, flush=True)
+        if PartialState().is_last_process:
+            print(json.dumps(all_output_jsons, indent=2, sort_keys=True), file=output_file)
 
         opts = vars(args)
         opts['compute_time'] = compute_time

@@ -8,9 +8,9 @@ filename=data/text_completion/corr_analysis/gpt2_xl/greedy.jsonl
 if [[ ! -f "${filename}" ]] || [[ $(($(wc -l < ${filename}) < 5000)) -eq 1 ]];
 then
     echo "Running Greedy."
-    JOBID1=$(sbatch -t 4:00:00  --parsable  ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename ${filename} --fp16); 
+    accelerate launch --multi-gpu text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename ${filename} --bf16 --batch_size 64 
     echo $JOBID1
-    sbatch -t 2:00:00 --parsable --dependency=afterok:${JOBID1} launcher_basic.sh python text_completion/score_generations.py --model_name_or_path gpt2-xl --dataset ${filename};
+    python text_completion/score_generations.py --model_name_or_path gpt2-xl --dataset ${filename};
 fi
 
 # Beam

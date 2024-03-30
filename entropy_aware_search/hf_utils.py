@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from itertools import chain
 import logging
 import os
+import torch
 import sys
 from typing import Optional
 from datasets import load_dataset
@@ -282,6 +283,12 @@ def get_prompts(datasets, prompt_len=50,
     return lm_datasets
 
 def get_model(model_args):
+
+    model_args.bf16 = True
+    torch_dtype = None
+    if model_args.bf16:
+        torch_dtype = torch.bfloat16
+
     config_kwargs = {
         "cache_dir": model_args.cache_dir,
         "revision": model_args.model_revision,
@@ -307,6 +314,9 @@ def get_model(model_args):
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
             use_auth_token=True if model_args.use_auth_token else None,
+            attn_implementation="flash_attention_2",
+            torch_dtype=torch_dtype,
+            low_cpu_mem_usage=True,
         )
     else:
         model = AutoModelForCausalLM.from_config(config)
