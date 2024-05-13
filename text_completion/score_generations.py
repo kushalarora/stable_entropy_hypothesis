@@ -29,7 +29,7 @@ keys = ['dataset', 'f1_score',
         'avg_compute_time_in_secs', 'ngram_repeat@4', 'ngram_repeat@5', 'mauve']
 def pretty_print_outputs(outputs):
     print(pd.DataFrame(
-            ((key, outputs[key]) for key in keys)
+            ((key, outputs[key]) for key in keys if key in outputs)
     ))
 
 def truncate(text):
@@ -152,12 +152,8 @@ with open(args.dataset, 'r') as dataset_file:
     ngram_repeats = {1: [], 2: [], 3: [], 4:[], 5:[]}
     num_generations = 0
     compute_time_in_secs = 0
-    for line in dataset_file:
+    for data in json.load(dataset_file):
         num_generations += 1
-        try:
-            data = json.loads(line.strip())
-        except:
-            continue 
         
         prefix = data['prefix']
         generation = data['generation'].strip()
@@ -203,33 +199,35 @@ with open(args.dataset, 'r') as dataset_file:
     for i, ngs in ngram_repeats.items():
         outputs[f'ngram_repeat@{i}'] = np.mean(ngs)
 
-    model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path)
-    model = model.to("cuda")
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
-    tokenizer.pad_token_id = tokenizer.eos_token_id
+    if args.compute_entropy_voilations:
+        model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path)
+        model = model.to("cuda")
+        tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
+        tokenizer.pad_token_id = tokenizer.eos_token_id
 
-    entropy_voilation_dict = compute_entropy_voilations(prefixes, targets, 
-                                generations, model, tokenizer)
-    outputs.update(entropy_voilation_dict)
-    mauve_filename = args.dataset + ".mauve"
-    generated_seq_hash = hashlib.md5(" ".join(generated_seqs).encode()).hexdigest()
-    
-    compute_mauve_score = not os.path.exists(mauve_filename)
-    if not compute_mauve_score:
-        with open(mauve_filename, 'rb') as mauve_file:
-            mauve_score_dict = pickle.load(mauve_file)
-            if mauve_score_dict['hash'] != generated_seq_hash:
-                compute_mauve_score = True
+        entropy_voilation_dict = compute_entropy_voilations(prefixes, targets, 
+                                    generations, model, tokenizer)
+        outputs.update(entropy_voilation_dict)
+    if args.eval_mauve:
+        mauve_filename = args.dataset + ".mauve"
+        generated_seq_hash = hashlib.md5(" ".join(generated_seqs).encode()).hexdigest()
+        
+        compute_mauve_score = not os.path.exists(mauve_filename)
+        if not compute_mauve_score:
+            with open(mauve_filename, 'rb') as mauve_file:
+                mauve_score_dict = pickle.load(mauve_file)
+                if mauve_score_dict['hash'] != generated_seq_hash:
+                    compute_mauve_score = True
 
-    if compute_mauve_score:
-        mauve_score = mauve.compute_mauve(p_text=generated_seqs, q_text=human_seqs, device_id=0, verbose=True, batch_size=16, max_text_length=768,)
-        mauve_score_dict = vars(mauve_score)
-        mauve_score_dict['hash'] = generated_seq_hash
+        if compute_mauve_score:
+            mauve_score = mauve.compute_mauve(p_text=generated_seqs, q_text=human_seqs, device_id=0, verbose=True, batch_size=16, max_text_length=768,)
+            mauve_score_dict = vars(mauve_score)
+            mauve_score_dict['hash'] = generated_seq_hash
 
-        with open(mauve_filename, 'wb') as mauve_file:
-            mauve_score = pickle.dump(mauve_score_dict, mauve_file)
-    
-    outputs["mauve"] = mauve_score_dict['mauve']
+            with open(mauve_filename, 'wb') as mauve_file:
+                mauve_score = pickle.dump(mauve_score_dict, mauve_file)
+        
+        outputs["mauve"] = mauve_score_dict['mauve']
 
     with open(args.dataset + ".score", "w") as score_file:
         print(json.dumps(outputs, indent=4), file=score_file)

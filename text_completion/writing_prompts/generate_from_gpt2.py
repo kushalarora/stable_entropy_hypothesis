@@ -3,6 +3,8 @@
 
 from entropy_aware_search.hf_utils import ModelArguments, get_tokenizer, get_model
 from utils import get_writing_prompt_dataset
+from accelerate import PartialState, Accelerator
+
 import argparse
 import logging
 
@@ -60,19 +62,20 @@ def main():
 
     parser.add_argument(
         "--model_name_or_path",
-        default="gpt2-xl",
+        default=None,
         type=str,
+        required=True,
         help="Path to pre-trained model or shortcut name",
     )
 
     parser.add_argument("--output_filename", type=str, default="The output file to save the generation.")
-    parser.add_argument("--length", type=int, default=1024)
+    parser.add_argument("--length", type=int, default=512)
     parser.add_argument("--stop_token", type=str, default="<|endoftext|>", help="Token at which text generation is stopped")
 
     parser.add_argument(
         "--temperature",
         type=float,
-        default=1.0,
+        default=None,
         help="temperature of 1.0 has no effect, lower tend toward greedy sampling",
     )
     parser.add_argument(
@@ -85,14 +88,14 @@ def main():
     parser.add_argument("--no_cuda", action="store_true", help="Avoid using CUDA when available")
     parser.add_argument("--num_return_sequences", type=int, default=1, help="The number of samples to generate.")
     parser.add_argument(
-        "--fp16",
+        "--bf16",
         action="store_true",
         help="Whether to use 16-bit (mixed) precision (through NVIDIA apex) instead of 32-bit",
     )
     parser.add_argument("--do_sample", action="store_true", help="Use Sampling Decoding.")
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--typical_p", type=float, default=None)
-    parser.add_argument("--batch_size", type=int, default=2)
+    parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--no_repeat_ngram_size", type=int, default=0)
     parser.add_argument("--entropy_aware_sampling", action="store_true", help="Use entropy aware search.")
     parser.add_argument("--ea_upper_limit_coeffs", type=float, nargs='+')
@@ -105,14 +108,14 @@ def main():
     parser.add_argument('--ea_human_entropy_std_band', type=float, default=1.0)
     parser.add_argument("--ea_donot_intervene_for_lower_bound", action="store_true", help="Use Sampling Decoding.")
     parser.add_argument("--ea_donot_intervene_for_upper_bound", action="store_true", help="Use Sampling Decoding.")
+    parser.add_argument("--load_in_8bit", action="store_true", help="Load in 8 bit.")
+    parser.add_argument("--num_examples", type=int, default=-1)
 
     args = parser.parse_args()
 
-    args.device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
     args.n_gpu = 0 if args.no_cuda else torch.cuda.device_count()
 
-    logger.warning(f"device: {args.device}, n_gpu: {args.n_gpu}, 16-bits training: {args.fp16}")
-
+    distributed_state = PartialState(cpu=args.no_cuda)
     set_seed(args)
 
     model_args = ModelArguments(

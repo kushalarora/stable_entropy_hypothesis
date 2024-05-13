@@ -74,7 +74,6 @@ def main():
 
     parser.add_argument("--output_filename", type=str, default="The output file to save the generation.")
     parser.add_argument("--length", type=int, default=512)
-    parser.add_argument("--stop_token", type=str, default="<|endoftext|>", help="Token at which text generation is stopped")
 
     parser.add_argument(
         "--temperature",
@@ -96,16 +95,21 @@ def main():
         action="store_true",
         help="Whether to use 16-bit (mixed) precision (through NVIDIA apex) instead of 32-bit",
     )
+    parser.add_argument(
+        "--fp16",
+        action="store_true",
+        help="Whether to use 16-bit (mixed) precision (through NVIDIA apex) instead of 32-bit",
+    )
     parser.add_argument("--do_sample", action="store_true", help="Use Sampling Decoding.")
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--typical_p", type=float, default=None)
-    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--no_repeat_ngram_size", type=int, default=0)
     parser.add_argument("--entropy_aware_sampling", action="store_true", help="Use entropy aware search.")
     parser.add_argument("--ea_upper_limit_coeffs", type=float, nargs='+')
     parser.add_argument("--ea_lower_limit_coeffs", type=float, nargs='+')
-    parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+',)
-    parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+',)
+    parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+')
+    parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+')
     # parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+', default=[-0.00277, 2.88702])
     # parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+', default=[-0.00064, 0.91427])
     parser.add_argument("--ea_version", type=int, default=3)
@@ -132,7 +136,10 @@ def main():
     args.bf16 = True
     torch_dtype = None
     if args.bf16:
-        torch_dtype = torch.bfloat16
+        if args.load_in_8bit:
+            torch_dtype = torch.float16
+        else:
+            torch_dtype = torch.bfloat16
 
     if args.temperature is not None and args.temperature > 0:
         args.do_sample = True
@@ -147,7 +154,7 @@ def main():
         tokenized_examples = tokenizer(prefixes, max_length=512, truncation=True, padding=True, return_tensors='pt')
         return tokenized_examples, prefixes, targets
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, trust_remote_code=True, use_auth_token=True)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = 'left'
 
@@ -253,7 +260,7 @@ def main():
                 generated_sequence = truncate(generated_sequence)
                 target = target
 
-                if (idx * args.batch_size + generated_sequence_idx) % 10 == 0:
+                if (idx * args.batch_size + generated_sequence_idx) % 8 == 0:
                     print()
                     print('*' * 100)
                     print(f"{distributed_state.device}")
