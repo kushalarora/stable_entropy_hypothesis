@@ -318,7 +318,7 @@ def main():
         opts['num_generations'] = num_generations
         opts['avg_compute_time'] = compute_time/num_generations
 
-        print(json.dumps(output, indent=2, sort_keys=True), 
+        print(json.dumps(opts, indent=2, sort_keys=True), 
                                 file=metadata_file, flush=True)
 if __name__ == "__main__":
     main()

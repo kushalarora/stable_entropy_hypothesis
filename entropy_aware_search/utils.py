@@ -149,17 +149,17 @@ def predict(model, tokenizer, context: str, model_text: str, width=1, max_len=12
         next_tokens = tokenized_model_text['input_ids']
 
     else:
-        tokenized_context = tokenizer(context, max_length=768, return_tensors="pt", truncation=True)
+        tokenized_context = tokenizer(context, max_length=max_source_len, return_tensors="pt", padding=False, truncation=True,)
         prompt_len = tokenized_context['input_ids'].shape[1]
 
-        batch = tokenizer(context, model_text, max_length=1024, return_tensors="pt", truncation=True)
+        batch = tokenizer(context, model_text, max_length=max_len, return_tensors="pt", padding=False, truncation=True)
         
         batch = batch.to(device)
         tokenized_context = tokenized_context.to(device)
         outputs = model(**batch)
         
         model_scores = outputs[0][:, prompt_len:-1]
-        tokenized_model_text = tokenizer(model_text, max_length=1024-prompt_len, return_tensors="pt", truncation=True)
+        tokenized_model_text = tokenizer(model_text, max_length=max_len-prompt_len, return_tensors="pt", padding=False, truncation=True,)
         next_tokens = batch['input_ids'][:, prompt_len+1:]
 
     entropy = entropy_from_scores(model_scores)
@@ -252,7 +252,8 @@ def compute_average_across_sequences(dataframe, model, tokenizer,
          width=1, cache=True, overwrite=False, is_seq2seq=False, 
          max_source_len=None,):
 
-    cache_dirname = "/home/mila/a/arorakus/wdir/entropy_aware_search/data/cahced/"
+    cache_dirname = os.path.expanduser("~/scratch/entropy_aware_search/data/cahced/")
+    os.makedirs(cache_dirname, exist_ok=True)
     dataframe_hash = str(hashlib.md5(dataframe.to_string().encode()).hexdigest())
     model_hash = str(hashlib.md5(model.config._name_or_path.encode()).hexdigest())
     cached_filename_prefix = os.path.join(cache_dirname, 
