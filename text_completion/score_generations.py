@@ -18,7 +18,7 @@ import pickle
 import pandas as pd
 # nlp = spacy.load("en_core_web_md")
 import hashlib
-
+import torch
 from entropy_aware_search.utils import compute_entropy_voilations, compute_ngram_repeats
 
 from transformers import AutoModelForCausalLM, AutoTokenizer

@@ -9,6 +9,7 @@ from accelerate.utils import set_seed, gather_object
 # from entropy_aware_search.hf_utils import DataArguments, ModelArguments, get_tokenizer, get_model
 from tqdm import trange
 from utils import get_wiki_dataset, get_compute_metrics_func
+from transformers import AutoTokenizer,AutoModelForCausalLM
 
 import argparse
 import logging
@@ -112,14 +113,20 @@ def main():
     parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+')
     # parser.add_argument("--ea_human_mean_coeffs", type=float, nargs='+', default=[-0.00277, 2.88702])
     # parser.add_argument("--ea_human_std_coeffs", type=float, nargs='+', default=[-0.00064, 0.91427])
-    parser.add_argument("--ea_version", type=int, default=3)
-    parser.add_argument("--ea_patience_window", type=int, default=5)
-    parser.add_argument("--ea_only_greedy_till", type=int, default=5)
+    parser.add_argument("--ea_version", type=int, default=4)
+    parser.add_argument("--ea_patience_window", type=int, default=0)
+    parser.add_argument("--ea_only_greedy_till", type=int, default=0)
     parser.add_argument('--ea_human_entropy_std_band', type=float, default=1.0)
     parser.add_argument("--ea_donot_intervene_for_lower_bound", action="store_true", help="Use Sampling Decoding.")
     parser.add_argument("--ea_donot_intervene_for_upper_bound", action="store_true", help="Use Sampling Decoding.")
     parser.add_argument("--load_in_8bit", action="store_true", help="Load in 8 bit.")
     parser.add_argument("--num_examples", type=int, default=-1)
+
+    parser.add_argument(
+        "--fp8",
+        action="store_true",
+        help="Whether to use 8-bit (mixed) precision (through NVIDIA apex) instead of 32-bit",
+    )
 
     args = parser.parse_args()
 
@@ -170,6 +177,13 @@ def main():
                                 )
 
 
+    if args.fp8:
+        model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path, device_map="auto" , load_in_8bit=True)
+    else: 
+        model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path)
+        model = model.to(args.device)
+
+
     args.length = adjust_length_to_model(args.length, max_sequence_length=model.config.max_position_embeddings)
     model.config.top_k = None
 
@@ -213,8 +227,8 @@ def main():
                 # entropy_aware_human_mean_coeffs=args.ea_human_mean_coeffs,
                 # entropy_aware_human_std_coeffs=args.ea_human_std_coeffs,
                 # entropy_aware_human_std_band=args.ea_human_entropy_std_band,
-                # pad_token_id=tokenizer.eos_token_id,
-                # ea_intervene_for_lower_bound=not args.ea_donot_intervene_for_lower_bound,
+                pad_token_id=tokenizer.eos_token_id,
+                # ea_intervene_for_lower_bound=False and not args.ea_donot_intervene_for_lower_bound,
                 # ea_intervene_for_upper_bound=not args.ea_donot_intervene_for_upper_bound,
             )
 
@@ -235,7 +249,7 @@ def main():
 
             entropy_aware_search = args.ea_human_mean_coeffs is not None and \
                                     args.ea_human_std_coeffs is not None and \
-                                        not args.entropy_aware_sampling
+                                     args.entropy_aware_sampling
             if entropy_aware_search:
                 pct_entropy_violations =  outputs['pct_entropy_violations'].cpu().tolist()
                 pct_upper_entropy_violations =  outputs['pct_upper_entropy_violations'].cpu().tolist()

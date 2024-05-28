@@ -12,6 +12,7 @@ import numpy as np
 import torch.nn.functional as F
 from termcolor import colored
 import torch
+from tqdm import tqdm
 
 COLUMNS = ['index', 'token', 'is_rep', 'is_lrep', 
             'is_crep', 'entropy', 'entropy_ma', 'dent', 
@@ -148,17 +149,17 @@ def predict(model, tokenizer, context: str, model_text: str, width=1, max_len=12
         next_tokens = tokenized_model_text['input_ids']
 
     else:
-        tokenized_context = tokenizer(context, max_length=768, return_tensors="pt")
+        tokenized_context = tokenizer(context, max_length=768, return_tensors="pt", truncation=True)
         prompt_len = tokenized_context['input_ids'].shape[1]
 
-        batch = tokenizer(context, model_text, max_length=1024, return_tensors="pt")
+        batch = tokenizer(context, model_text, max_length=1024, return_tensors="pt", truncation=True)
         
         batch = batch.to(device)
         tokenized_context = tokenized_context.to(device)
         outputs = model(**batch)
         
         model_scores = outputs[0][:, prompt_len:-1]
-        tokenized_model_text = tokenizer(model_text, max_length=1024-prompt_len, return_tensors="pt")
+        tokenized_model_text = tokenizer(model_text, max_length=1024-prompt_len, return_tensors="pt", truncation=True)
         next_tokens = batch['input_ids'][:, prompt_len+1:]
 
     entropy = entropy_from_scores(model_scores)
@@ -285,7 +286,7 @@ def compute_average_across_sequences(dataframe, model, tokenizer,
         values = np.zeros((num_seq, max_len))
         values.fill(-1)
 
-        for j, (_,datapoint) in enumerate(dataframe.sample(num_seq).iterrows()):
+        for j, (_,datapoint) in enumerate(tqdm(dataframe.sample(num_seq).iterrows())):
             labeled_dataframe = process_datapoint(model=model, 
                                     tokenizer=tokenizer, datapoint=datapoint,
                                     width=width, max_len=max_len, 

@@ -126,17 +126,17 @@ def main():
     )
     
     wiki_dataset = load_dataset("json", 
-                    data_files=f"data/factuality/fever_{args.type}_final.jsonl")
+                    data_files=f"data/fever_{args.type}_final.jsonl")
     wiki_testset = wiki_dataset['train']
 
     tokenizer = get_tokenizer(model_args)
     tokenizer.pad_token = tokenizer.eos_token
 
     model = get_model(model_args)
-    model = model.to(args.device)
+    model = model.to(args.device, dtype=torch.bfloat16)
     
     def tokenizer_method(examples):
-        tokenized_examples = tokenizer(examples['prompt'], max_length=1024-128-3, truncation=True, padding=True, return_tensors='pt')
+        tokenized_examples = tokenizer(examples['prompt'], max_length=1024-128-3, truncation=True, padding=True, return_tensors='pt', return_token_type_ids=False)
         return tokenized_examples
 
     # compute_metrics = get_compute_metrics_func(experiment_id="tmp_id", tokenizer=tokenizer, metric_names=['accuracy', 'mauve'])
@@ -157,6 +157,8 @@ def main():
         generated_output_sequences = []
         prompt_sequences = []
         targets = []
+
+        import pdb; pdb.set_trace()
         for idx, batch_start in enumerate(trange(0, len(wiki_testset), args.batch_size)):
             batch = tokenizer_method(wiki_testset[batch_start: batch_start+args.batch_size])
             batch = batch.to(args.device)
@@ -173,20 +175,20 @@ def main():
                 repetition_penalty=args.repetition_penalty,
                 no_repeat_ngram_size=args.no_repeat_ngram_size,
                 do_sample=args.do_sample,
-                entropy_aware_sampling=args.entropy_aware_sampling,
+                # entropy_aware_sampling=args.entropy_aware_sampling,
                 return_dict_in_generate=True,
                 output_scores=True,
-                ea_version=args.ea_version,
-                ea_lower_limit_coeffs=args.ea_lower_limit_coeffs,
-                ea_upper_limit_coeffs=args.ea_upper_limit_coeffs,
-                ea_patience_window=args.ea_patience_window,
-                ea_only_greedy_till=args.ea_only_greedy_till,
-                entropy_aware_human_mean_coeffs=args.ea_human_mean_coeffs,
-                entropy_aware_human_std_coeffs=args.ea_human_std_coeffs,
-                entropy_aware_human_std_band=args.ea_human_entropy_std_band,
-                pad_token_id=tokenizer.eos_token_id,
-                ea_intervene_for_lower_bound=not args.ea_donot_intervene_for_lower_bound,
-                ea_intervene_for_upper_bound=not args.ea_donot_intervene_for_upper_bound,
+                # ea_version=args.ea_version,
+                # ea_lower_limit_coeffs=args.ea_lower_limit_coeffs,
+                # ea_upper_limit_coeffs=args.ea_upper_limit_coeffs,
+                # ea_patience_window=args.ea_patience_window,
+                # ea_only_greedy_till=args.ea_only_greedy_till,
+                # entropy_aware_human_mean_coeffs=args.ea_human_mean_coeffs,
+                # entropy_aware_human_std_coeffs=args.ea_human_std_coeffs,
+                # entropy_aware_human_std_band=args.ea_human_entropy_std_band,
+                # pad_token_id=tokenizer.eos_token_id,
+                # ea_intervene_for_lower_bound=not args.ea_donot_intervene_for_lower_bound,
+                # ea_intervene_for_upper_bound=not args.ea_donot_intervene_for_upper_bound,
             )
 
             end_time = timeit.default_timer()

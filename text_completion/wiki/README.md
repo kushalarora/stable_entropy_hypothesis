@@ -8,6 +8,13 @@
 	 lower_cutoff_coeffs: (2e-05, -0.00588, 3.85322)
 
 	 upper_cutoff_coeffs: (-3e-05, 0.00159, 1.89477) -->
+
+
+
+	 <!--
+	 human_ma_mean_coeffs: (2.73322)
+	 human_ma_std_coeffs: (1.70515) 
+	 -->
 ### Generate from GPT-2 XL (Wiki dataset RankGen)
 ```bash
 sbatch -t 4:00:00 ./launcher_basic.sh python text_completion/wiki/generate_from_gpt2.py --model_name_or_path gpt2-xl --output_filename data/text_completion/generated/gpt2_xl/greedy.jsonl --fp16
